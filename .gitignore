@@ -1,0 +1,33 @@
+# Build output directory
+/build
+
+# Object files
+*.o
+
+# Dependency files (GCC -MMD -MP)
+*.d
+
+# Assembly listing files
+*.lst
+
+# Linker output files
+*.elf
+*.hex
+*.bin
+*.map
+*.out
+
+# STM32CubeMX / STM32CubeIDE generated user settings
+.mxproject
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
