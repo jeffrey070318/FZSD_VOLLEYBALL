@@ -60,7 +60,7 @@ typedef struct
     Motor_Type_e motor_type;        // 电机类型
     Motor_Working_Type_e stop_flag; // 启停标志
 
-    DaemonInstance* daemon;
+    DaemonInstance *daemon;
     uint32_t feed_cnt;
     float dt;
 } DJIMotorInstance;
@@ -105,10 +105,6 @@ void DJIMotorChangeFeed(DJIMotorInstance *motor, Closeloop_Type_e loop, Feedback
  * @brief 该函数被motor_task调用运行在rtos上,motor_stask内通过osDelay()确定控制频率
  */
 void DJIMotorControl();
-
-/* 修改电机的前馈标志 */
-void DJIMotorSetFeedfoward(DJIMotorInstance *motor, Feedfoward_Type_e feedfoward_loop);
-
 
 /**
  * @brief 停止电机,注意不是将设定值设为零,而是直接给电机发送的电流值置零
