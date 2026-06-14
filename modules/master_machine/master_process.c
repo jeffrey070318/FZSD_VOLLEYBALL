@@ -12,6 +12,8 @@
  *
  */
 #include "master_process.h"
+//Jeffrey070318增加：视觉通信方式宏定义在robot_def.h中，master_process.c需要读取该配置以编译对应实现。
+#include "robot_def.h"
 //#include "seasky_protocol.h"
 #include "bsp_log.h"
 #include "daemon.h"

@@ -32,6 +32,16 @@
 #define T_MIN -30.0f
 #define T_MAX 30.0f
 
+//Jeffrey070318增加：MIT控制数据属于DM电机控制接口，放在电机模块内避免general_def.h依赖application层定义。
+typedef struct
+{
+    float pos;
+    float vel;
+    float kp;
+    float kd;
+    float torq;
+} MIT_CTRL_DATA;
+
 typedef struct
 {
     int id;

@@ -50,6 +50,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    # Jeffrey070318增加：使用Drivers下的CMSIS-DSP头文件，与链接的M7硬浮点DSP库保持一致。
+    "Drivers/CMSIS/DSP/Include"
 )
 
 # Add project symbols (macros)
@@ -61,8 +63,11 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 
 # Add linked libraries
+# Jeffrey070318增加：STM32H723为Cortex-M7硬浮点单精度，链接CMSIS-DSP库以解析arm_mat/arm_sin等函数。
+set(CMSIS_DSP_LIB "${CMAKE_SOURCE_DIR}/Drivers/CMSIS/DSP/Lib/GCC/libarm_cortexM7lfsp_math.a")
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
+    ${CMSIS_DSP_LIB}
 
     # Add user defined libraries
 )
@@ -99,4 +104,3 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
  "modules"
  "application"
 )
-

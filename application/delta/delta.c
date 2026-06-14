@@ -5,7 +5,8 @@
 #include "dmmotor.h"
 #include "message_center.h"
 #include "bsp_dwt.h"
-#include "general_def.h"
+//Jeffrey070318修改：Delta状态机和消息结构迁移到robot_def.h，避免general_def.h承载app层语义。
+#include "robot_def.h"
 #include "remote_control.h"
 
 Joint_Motor_t Delta_motor[3];

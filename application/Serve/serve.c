@@ -5,9 +5,13 @@
 #include "dmmotor.h"
 #include "message_center.h"
 #include "bsp_dwt.h"
-#include "general_def.h"
+//Jeffrey070318修改：Serve状态机和消息结构迁移到robot_def.h，避免general_def.h承载app层语义。
+#include "robot_def.h"
 
+//Jeffrey070318修改：Serve位置阈值优先使用robot_def.h统一配置，这里只保留缺省兜底。
+#ifndef SERVE_POSITION_THRESHOLD
 #define SERVE_POSITION_THRESHOLD 0.15f
+#endif
 
 Joint_Motor_t Serve_motor;
 
