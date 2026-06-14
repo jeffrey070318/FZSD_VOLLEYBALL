@@ -1,14 +1,14 @@
 #include "dmmotor.h"
 #include "general_def.h"
 
-float Hex_To_Float(uint32_t *Byte,int num)//十六进制到浮点数
+float Hex_To_Float(uint32_t *Byte, int num) // 十六进制到浮点数
 {
-	return *((float*)Byte);
+	return *((float *)Byte);
 }
 
-uint32_t FloatTohex(float HEX)//浮点数到十六进制转换
+uint32_t FloatTohex(float HEX) // 浮点数到十六进制转换
 {
-	return *( uint32_t *)&HEX;
+	return *(uint32_t *)&HEX;
 }
 
 /**
@@ -27,7 +27,7 @@ int float_to_uint(float x_float, float x_min, float x_max, int bits)
 	/* Converts a float to an unsigned int, given range and number of bits */
 	float span = x_max - x_min;
 	float offset = x_min;
-	return (int) ((x_float-offset)*((float)((1<<bits)-1))/span);
+	return (int)((x_float - offset) * ((float)((1 << bits) - 1)) / span);
 }
 /**
 ************************************************************************
@@ -45,20 +45,20 @@ float uint_to_float(int x_int, float x_min, float x_max, int bits)
 	/* converts unsigned int to float, given range and number of bits */
 	float span = x_max - x_min;
 	float offset = x_min;
-	return ((float)x_int)*span/((float)((1<<bits)-1)) + offset;
+	return ((float)x_int) * span / ((float)((1 << bits) - 1)) + offset;
 }
 
 /**
  * @brief 关节电机初始化
- * 
- * @param motor 
- * @param id 
- * @param mode 
+ *
+ * @param motor
+ * @param id
+ * @param mode
  */
-void joint_motor_init(Joint_Motor_t *motor,uint16_t id,uint16_t mode)
+void joint_motor_init(Joint_Motor_t *motor, uint16_t id, uint16_t mode)
 {
-  motor->mode=mode;
-  motor->para.id=id;
+	motor->mode = mode;
+	motor->para.id = id;
 }
 
 /**
@@ -73,33 +73,32 @@ void joint_motor_init(Joint_Motor_t *motor,uint16_t id,uint16_t mode)
 ************************************************************************
 **/
 void Dm8009_Fbdata(Joint_Motor_t *motor, uint8_t *rx_data)
-{ 
-	motor->para.id = (rx_data[0])&0x0F;
-	motor->para.state = (rx_data[0])>>4;
+{
+	motor->para.id = (rx_data[0]) & 0x0F;
+	motor->para.state = (rx_data[0]) >> 4;
 	motor->para.p_int = (uint16_t)((rx_data[1] << 8) | rx_data[2]);
 	motor->para.v_int = (uint16_t)(rx_data[3] << 4) | (rx_data[4] >> 4);
 	motor->para.t_int = (uint16_t)((rx_data[4] & 0xF) << 8) | rx_data[5];
 	motor->para.pos = uint_to_float(motor->para.p_int, P_MIN, P_MAX, 16); // (-12.5,12.5)
 	motor->para.vel = uint_to_float(motor->para.v_int, V_MIN, V_MAX, 30); // (-30.0,30.0)
-	motor->para.tor = uint_to_float(motor->para.t_int, T_MIN, T_MAX, 10);  // (-10.0,10.0)
+	motor->para.tor = uint_to_float(motor->para.t_int, T_MIN, T_MAX, 10); // (-10.0,10.0)
 	motor->para.t_mos = (float)(rx_data[6]);
 	motor->para.t_rotor = (float)(rx_data[7]);
-	
 }
 
 /**
  * @brief 清除电机错误
- * 
- * @param hcan 
- * @param motor_id 
- * @param mode_id 
+ *
+ * @param hcan
+ * @param motor_id
+ * @param mode_id
  * @details     通过CAN总线向特定电机发送清除错误的命令。
  */
-void Clear_Error(hcan_t* hcan, uint16_t motor_id, uint16_t mode_id)
+void Clear_Error(hcan_t *hcan, uint16_t motor_id, uint16_t mode_id)
 {
 	uint8_t data[8];
 	uint16_t id = motor_id + mode_id;
-	
+
 	data[0] = 0xFF;
 	data[1] = 0xFF;
 	data[2] = 0xFF;
@@ -108,22 +107,22 @@ void Clear_Error(hcan_t* hcan, uint16_t motor_id, uint16_t mode_id)
 	data[5] = 0xFF;
 	data[6] = 0xFF;
 	data[7] = 0xFB;
-	
+
 	canx_send_data(hcan, id, data, 8);
 }
 
 /**
  * @brief 电机使能
- * 
- * @param hcan 
- * @param motor_id 
- * @param mode_id 
+ *
+ * @param hcan
+ * @param motor_id
+ * @param mode_id
  */
-void Enable_Motor_Mode(hcan_t* hcan, Joint_Motor_t* motor)
+void Enable_Motor_Mode(hcan_t *hcan, Joint_Motor_t *motor)
 {
 	uint8_t data[8];
 	uint16_t id = motor->para.id + motor->mode;
-	
+
 	data[0] = 0xFF;
 	data[1] = 0xFF;
 	data[2] = 0xFF;
@@ -132,22 +131,22 @@ void Enable_Motor_Mode(hcan_t* hcan, Joint_Motor_t* motor)
 	data[5] = 0xFF;
 	data[6] = 0xFF;
 	data[7] = 0xFC;
-	
+
 	canx_send_data(hcan, id, data, 8);
 }
 
 /**
  * @brief 电机失能
- * 
- * @param hcan 
- * @param motor_id 
- * @param mode_id 
+ *
+ * @param hcan
+ * @param motor_id
+ * @param mode_id
  */
-void Disable_Motor_Mode(hcan_t* hcan, uint16_t motor_id, uint16_t mode_id)
+void Disable_Motor_Mode(hcan_t *hcan, uint16_t motor_id, uint16_t mode_id)
 {
 	uint8_t data[8];
 	uint16_t id = motor_id + mode_id;
-	
+
 	data[0] = 0xFF;
 	data[1] = 0xFF;
 	data[2] = 0xFF;
@@ -156,22 +155,22 @@ void Disable_Motor_Mode(hcan_t* hcan, uint16_t motor_id, uint16_t mode_id)
 	data[5] = 0xFF;
 	data[6] = 0xFF;
 	data[7] = 0xFD;
-	
+
 	canx_send_data(hcan, id, data, 8);
 }
 
 /**
  * @brief 电机报错零点
- * 
- * @param hcan 
- * @param motor_id 
- * @param mode_id 
+ *
+ * @param hcan
+ * @param motor_id
+ * @param mode_id
  */
-void Save_Pos_Zero(hcan_t* hcan, uint16_t motor_id, uint16_t mode_id)
+void Save_Pos_Zero(hcan_t *hcan, uint16_t motor_id, uint16_t mode_id)
 {
 	uint8_t data[8];
 	uint16_t id = motor_id + mode_id;
-	
+
 	data[0] = 0xFF;
 	data[1] = 0xFF;
 	data[2] = 0xFF;
@@ -180,7 +179,7 @@ void Save_Pos_Zero(hcan_t* hcan, uint16_t motor_id, uint16_t mode_id)
 	data[5] = 0xFF;
 	data[6] = 0xFF;
 	data[7] = 0xFE;
-	
+
 	canx_send_data(hcan, id, data, 8);
 }
 
@@ -198,27 +197,27 @@ void Save_Pos_Zero(hcan_t* hcan, uint16_t motor_id, uint16_t mode_id)
 * @details:    	通过CAN总线向电机发送MIT模式下的控制帧。
 ************************************************************************
 **/
-void Mit_Ctrl(hcan_t* hcan, Joint_Motor_t* motor, MIT_CTRL_DATA ctrl_data)
+void Mit_Ctrl(hcan_t *hcan, Joint_Motor_t *motor, MIT_CTRL_DATA ctrl_data)
 {
 	uint8_t data[8];
-	uint16_t pos_tmp,vel_tmp,kp_tmp,kd_tmp,tor_tmp;
+	uint16_t pos_tmp, vel_tmp, kp_tmp, kd_tmp, tor_tmp;
 	uint16_t id = motor->para.id + MIT_MODE;
 
-	pos_tmp = float_to_uint(ctrl_data.pos,  P_MIN,  P_MAX,  16);
-	vel_tmp = float_to_uint(ctrl_data.vel,  V_MIN,  V_MAX,  12);
-	kp_tmp  = float_to_uint(ctrl_data.kp,   KP_MIN, KP_MAX, 12);
-	kd_tmp  = float_to_uint(ctrl_data.kd,   KD_MIN, KD_MAX, 12);
-	tor_tmp = float_to_uint(ctrl_data.torq, T_MIN,  T_MAX,  12);
+	pos_tmp = float_to_uint(ctrl_data.pos, P_MIN, P_MAX, 16);
+	vel_tmp = float_to_uint(ctrl_data.vel, V_MIN, V_MAX, 12);
+	kp_tmp = float_to_uint(ctrl_data.kp, KP_MIN, KP_MAX, 12);
+	kd_tmp = float_to_uint(ctrl_data.kd, KD_MIN, KD_MAX, 12);
+	tor_tmp = float_to_uint(ctrl_data.torq, T_MIN, T_MAX, 12);
 
 	data[0] = (pos_tmp >> 8);
 	data[1] = pos_tmp;
 	data[2] = (vel_tmp >> 4);
-	data[3] = ((vel_tmp&0xF)<<4)|(kp_tmp>>8);
+	data[3] = ((vel_tmp & 0xF) << 4) | (kp_tmp >> 8);
 	data[4] = kp_tmp;
 	data[5] = (kd_tmp >> 4);
-	data[6] = ((kd_tmp&0xF)<<4)|(tor_tmp>>8);
+	data[6] = ((kd_tmp & 0xF) << 4) | (tor_tmp >> 8);
 	data[7] = tor_tmp;
-	
+
 	canx_send_data(hcan, id, data, 8);
 }
 
@@ -232,26 +231,26 @@ void Mit_Ctrl(hcan_t* hcan, Joint_Motor_t* motor, MIT_CTRL_DATA ctrl_data)
 * @details:    	通过CAN总线向电机发送位置速度控制命令
 ************************************************************************
 **/
-void Pos_Speed_Ctrl(hcan_t* hcan, Joint_Motor_t* motor, float pos, float vel)
+void Pos_Speed_Ctrl(hcan_t *hcan, Joint_Motor_t *motor, float pos, float vel)
 {
 	uint16_t id;
 	uint8_t *pbuf, *vbuf;
 	uint8_t data[8];
-	
+
 	id = motor->para.id + POS_MODE;
-	pbuf=(uint8_t*)&pos;
-	vbuf=(uint8_t*)&vel;
-	
+	pbuf = (uint8_t *)&pos;
+	vbuf = (uint8_t *)&vel;
+
 	data[0] = *pbuf;
-	data[1] = *(pbuf+1);
-	data[2] = *(pbuf+2);
-	data[3] = *(pbuf+3);
+	data[1] = *(pbuf + 1);
+	data[2] = *(pbuf + 2);
+	data[3] = *(pbuf + 3);
 
 	data[4] = *vbuf;
-	data[5] = *(vbuf+1);
-	data[6] = *(vbuf+2);
-	data[7] = *(vbuf+3);
-	
+	data[5] = *(vbuf + 1);
+	data[6] = *(vbuf + 2);
+	data[7] = *(vbuf + 3);
+
 	canx_send_data(hcan, id, data, 8);
 }
 
@@ -265,19 +264,19 @@ void Pos_Speed_Ctrl(hcan_t* hcan, Joint_Motor_t* motor, float pos, float vel)
 * @details:    	通过CAN总线向电机发送速度控制命令
 ************************************************************************
 **/
-void Speed_Ctrl(hcan_t* hcan,uint16_t motor_id, float vel)
+void Speed_Ctrl(hcan_t *hcan, uint16_t motor_id, float vel)
 {
 	uint16_t id;
 	uint8_t *vbuf;
 	uint8_t data[4];
-	
+
 	id = motor_id + SPEED_MODE;
-	vbuf=(uint8_t*)&vel;
-	
+	vbuf = (uint8_t *)&vel;
+
 	data[0] = *vbuf;
-	data[1] = *(vbuf+1);
-	data[2] = *(vbuf+2);
-	data[3] = *(vbuf+3);
-	
+	data[1] = *(vbuf + 1);
+	data[2] = *(vbuf + 2);
+	data[3] = *(vbuf + 3);
+
 	canx_send_data(hcan, id, data, 4);
 }
