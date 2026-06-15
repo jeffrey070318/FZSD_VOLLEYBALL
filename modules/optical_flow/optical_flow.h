@@ -21,6 +21,8 @@
 #define OPTICAL_FLOW_UPIXELS_PAYLOAD_LEN 10
 /** 默认角位移缩放系数,flow_integral = radians * 10000. */
 #define OPTICAL_FLOW_DEFAULT_SCALE 10000.0f
+//Jeffrey070318增加：当前工程INS/DM-IMU欧拉角输出为deg，光流融合内部统一使用rad。
+#define OPTICAL_FLOW_DEG_TO_RAD 0.017453292519943295f
 
 /**
  * @brief 光流模块通信协议类型.
@@ -73,6 +75,16 @@ typedef struct
 /** 光流模块实例前向声明. */
 typedef struct optical_flow_instance OpticalFlowInstance;
 
+//Jeffrey070318增加：光流可选IMU融合输入，角度统一为rad，陀螺保持当前工程已有的rad/s。
+typedef struct
+{
+    float yaw;    /**< 航向角,单位 rad,用于车体系位移转世界系. */
+    float pitch;  /**< 俯仰角,单位 rad,用于TOF高度投影修正. */
+    float roll;   /**< 横滚角,单位 rad,用于TOF高度投影修正. */
+    float gyro_x; /**< 车体X轴角速度,单位 rad/s,用于扣除roll引入的伪光流. */
+    float gyro_y; /**< 车体Y轴角速度,单位 rad/s,用于扣除pitch引入的伪光流. */
+} OpticalFlow_IMU_Data_s;
+
 /**
  * @brief 光流模块初始化配置.
  */
@@ -86,6 +98,8 @@ typedef struct
     int8_t x_direction;          /**< 安装方向修正: X 方向符号,填 0 默认 1. */
     int8_t y_direction;          /**< 安装方向修正: Y 方向符号,填 0 默认 1. */
     uint8_t min_valid_threshold; /**< 光流置信度门限,填 0 默认 50. */
+    const OpticalFlow_IMU_Data_s *imu_data; /**< Jeffrey070318增加：IMU融合数据指针,为空时保持纯光流积分. */
+    float deadzone_m;            /**< Jeffrey070318增加：单帧位移死区,单位m,填0关闭静止漂移抑制. */
 
     uint16_t daemon_reload_count;                   /**< 离线检测计数,填 0 默认 10. */
     void (*offline_callback)(void *);               /**< 模块离线回调,为空时使用默认串口重启逻辑. */
@@ -118,6 +132,24 @@ struct optical_flow_instance
  * @return OpticalFlowInstance* 光流模块实例指针.
  */
 OpticalFlowInstance *OpticalFlowInit(OpticalFlow_Init_Config_s *config);
+
+/**
+ * @brief 将当前工程常见的deg欧拉角转换成光流融合需要的rad格式.
+ *
+ * @param imu_data 光流IMU数据缓存.
+ * @param yaw_deg 航向角,单位deg.
+ * @param pitch_deg 俯仰角,单位deg.
+ * @param roll_deg 横滚角,单位deg.
+ * @param gyro_x_rad_s 车体X轴角速度,单位rad/s.
+ * @param gyro_y_rad_s 车体Y轴角速度,单位rad/s.
+ */
+//Jeffrey070318增加：给INS/DM-IMU接入光流融合提供显式单位转换入口，避免deg/rad混用。
+void OpticalFlowIMUDataFromDegree(OpticalFlow_IMU_Data_s *imu_data,
+                                  float yaw_deg,
+                                  float pitch_deg,
+                                  float roll_deg,
+                                  float gyro_x_rad_s,
+                                  float gyro_y_rad_s);
 
 /**
  * @brief 获取最新解析数据.

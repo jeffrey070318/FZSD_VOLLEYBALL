@@ -9,6 +9,8 @@
 #include "bsp_log.h"
 #include "memory.h"
 #include "stdlib.h"
+//Jeffrey070318增加：IMU高度投影和世界系旋转需要cosf/sinf/fabsf。
+#include "math.h"
 
 /** 保存所有光流实例,用于串口回调中分发接收到的数据. */
 static OpticalFlowInstance *optical_flow_instances[OPTICAL_FLOW_MAX_INSTANCE] = {NULL};
@@ -79,6 +81,7 @@ static void OpticalFlowApplyPayload(OpticalFlowInstance *instance)
     float scale = instance->config.flow_scale;
     float angle_x;
     float angle_y;
+    float height_mm;
     float dx;
     float dy;
 
@@ -95,6 +98,16 @@ static void OpticalFlowApplyPayload(OpticalFlowInstance *instance)
 
     angle_x = (float)raw->flow_x_integral / scale;
     angle_y = (float)raw->flow_y_integral / scale;
+
+    //Jeffrey070318增加：可选IMU旋转补偿，扣除车体pitch/roll转动在光流中形成的伪角位移。
+    if (instance->config.imu_data != NULL && raw->integration_timespan > 0)
+    {
+        const OpticalFlow_IMU_Data_s *imu = instance->config.imu_data;
+        float dt_s = (float)raw->integration_timespan * 0.000001f;
+        angle_x -= imu->gyro_y * dt_s;
+        angle_y -= imu->gyro_x * dt_s;
+    }
+
     instance->data.delta_angle_x = angle_x;
     instance->data.delta_angle_y = angle_y;
 
@@ -111,9 +124,17 @@ static void OpticalFlowApplyPayload(OpticalFlowInstance *instance)
     if (raw->valid < instance->config.min_valid_threshold || raw->ground_distance == 0xFFFF)
         return;
 
+    //Jeffrey070318增加：可选IMU高度修正，将TOF斜距按pitch/roll投影到垂直高度。
+    height_mm = (float)raw->ground_distance;
+    if (instance->config.imu_data != NULL)
+    {
+        const OpticalFlow_IMU_Data_s *imu = instance->config.imu_data;
+        height_mm *= cosf(imu->pitch) * cosf(imu->roll);
+    }
+
     /* 角位移(rad) * 高度(mm) / 1000 = 实际平移(m). */
-    dx = angle_x * (float)raw->ground_distance * 0.001f;
-    dy = angle_y * (float)raw->ground_distance * 0.001f;
+    dx = angle_x * height_mm * 0.001f;
+    dy = angle_y * height_mm * 0.001f;
 
     /* 根据车底实际安装方向修正光流坐标系到车体坐标系. */
     if (instance->config.swap_xy)
@@ -125,6 +146,27 @@ static void OpticalFlowApplyPayload(OpticalFlowInstance *instance)
 
     dx *= (float)instance->config.x_direction;
     dy *= (float)instance->config.y_direction;
+
+    //Jeffrey070318增加：可选IMU航向旋转，将车体系单帧位移转换到世界系累计。
+    if (instance->config.imu_data != NULL)
+    {
+        const OpticalFlow_IMU_Data_s *imu = instance->config.imu_data;
+        float c = cosf(imu->yaw);
+        float s = sinf(imu->yaw);
+        float world_dx = dx * c - dy * s;
+        float world_dy = dx * s + dy * c;
+        dx = world_dx;
+        dy = world_dy;
+    }
+
+    //Jeffrey070318增加：可选小位移死区，抑制静止漂移且同步清零速度，避免保留上一帧速度。
+    if (instance->config.deadzone_m > 0.0f &&
+        fabsf(dx) < instance->config.deadzone_m &&
+        fabsf(dy) < instance->config.deadzone_m)
+    {
+        dx = 0.0f;
+        dy = 0.0f;
+    }
 
     instance->data.delta_x = dx;
     instance->data.delta_y = dy;
@@ -169,6 +211,11 @@ static void OpticalFlowParseByte(OpticalFlowInstance *instance, uint8_t ch)
             instance->xor_calc = 0;
             instance->rx_state = 2;
         }
+        else if (ch == 0xFE)
+        {
+            // Jeffrey070318增加：连续帧头或噪声中再次遇到帧头时保持等待长度状态，加快重新同步。
+            instance->rx_state = 1;
+        }
         else
         {
             OpticalFlowResetParser(instance);
@@ -189,8 +236,20 @@ static void OpticalFlowParseByte(OpticalFlowInstance *instance, uint8_t ch)
     case 4:
         /* 校验帧尾和 XOR,通过后才更新实例数据. */
         if (ch == 0x55 && instance->xor_recv == instance->xor_calc)
+        {
             OpticalFlowApplyPayload(instance);
-        OpticalFlowResetParser(instance);
+            OpticalFlowResetParser(instance);
+        }
+        else if (ch == 0xFE)
+        {
+            // Jeffrey070318增加：坏帧结尾处若正好读到下一帧帧头，直接切到等待长度，避免丢掉下一帧。
+            OpticalFlowResetParser(instance);
+            instance->rx_state = 1;
+        }
+        else
+        {
+            OpticalFlowResetParser(instance);
+        }
         break;
     default:
         OpticalFlowResetParser(instance);
@@ -213,7 +272,12 @@ static void OpticalFlowRxCallback()
         if (instance == NULL || instance->usart_instance == NULL)
             continue;
 
-        recv_len = instance->usart_instance->recv_buff_size;
+        // Jeffrey070318修改：只解析本次DMA/IDLE实际收到的字节，避免半包时把buffer尾部残留或清零数据喂进状态机。
+        recv_len = instance->usart_instance->recv_len;
+        if (recv_len > instance->usart_instance->recv_buff_size)
+            recv_len = instance->usart_instance->recv_buff_size;
+        if (recv_len == 0)
+            continue;
 
         for (uint16_t j = 0; j < recv_len; j++)
             OpticalFlowParseByte(instance, instance->usart_instance->recv_buff[j]);
@@ -358,4 +422,22 @@ uint8_t OpticalFlowIsOnline(OpticalFlowInstance *instance)
         return 0;
 
     return DaemonIsOnline(instance->daemon);
+}
+
+//Jeffrey070318增加：集中处理INS/DM-IMU常见deg欧拉角到光流rad接口的转换。
+void OpticalFlowIMUDataFromDegree(OpticalFlow_IMU_Data_s *imu_data,
+                                  float yaw_deg,
+                                  float pitch_deg,
+                                  float roll_deg,
+                                  float gyro_x_rad_s,
+                                  float gyro_y_rad_s)
+{
+    if (imu_data == NULL)
+        return;
+
+    imu_data->yaw = yaw_deg * OPTICAL_FLOW_DEG_TO_RAD;
+    imu_data->pitch = pitch_deg * OPTICAL_FLOW_DEG_TO_RAD;
+    imu_data->roll = roll_deg * OPTICAL_FLOW_DEG_TO_RAD;
+    imu_data->gyro_x = gyro_x_rad_s;
+    imu_data->gyro_y = gyro_y_rad_s;
 }

@@ -25,6 +25,7 @@ typedef struct
 {
     uint8_t recv_buff[USART_RXBUFF_LIMIT]; // 预先定义的最大buff大小,如果太小请修改USART_RXBUFF_LIMIT
     uint8_t recv_buff_size;                // 模块接收一包数据的大小
+    uint16_t recv_len;                     // Jeffrey070318增加：记录本次DMA/IDLE实际接收长度，供变长或拆包协议只解析有效字节。
     UART_HandleTypeDef *usart_handle;      // 实例对应的usart_handle
     usart_module_callback module_callback; // 解析收到的数据的回调函数
 } USARTInstance;
