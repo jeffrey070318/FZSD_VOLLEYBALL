@@ -21,7 +21,10 @@ void RobotInit()
 #endif
 
     DeltaInit();
+#if ROBOT_HAS_SERVE
+    //Jeffrey070318修改：只有R1包含发球拨杆Serve应用，R2只初始化接球机械臂Delta。
     ServeInit();
+#endif
     RobotCMDInit();
 
     OSTaskInit(); // 创建基础任务
@@ -40,5 +43,8 @@ void RobotTask()
 #endif
 
     DeltaTask();
+#if ROBOT_HAS_SERVE
+    //Jeffrey070318修改：只有R1运行Serve任务，避免R2访问不存在的发球机构。
     ServeTask();
+#endif
 }

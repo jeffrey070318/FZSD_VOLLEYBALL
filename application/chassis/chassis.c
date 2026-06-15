@@ -67,20 +67,22 @@ void ChassisInit()
         .can_init_config.can_handle = &hcan1,
         .controller_param_init_config = {
             .speed_PID = {
-                .Kp = 10, // 4.5
-                .Ki = 0,  // 0
-                .Kd = 0,  // 0
-                .IntegralLimit = 3000,
+                //Jeffrey070318修改：底盘速度环PID使用R1/R2独立参数。
+                .Kp = CHASSIS_SPEED_PID_KP,
+                .Ki = CHASSIS_SPEED_PID_KI,
+                .Kd = CHASSIS_SPEED_PID_KD,
+                .IntegralLimit = CHASSIS_SPEED_PID_INTEGRAL_LIMIT,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                .MaxOut = 12000,
+                .MaxOut = CHASSIS_SPEED_PID_MAX_OUT,
             },
             .current_PID = {
-                .Kp = 0.5, // 0.4
-                .Ki = 0,   // 0
-                .Kd = 0,
-                .IntegralLimit = 3000,
+                //Jeffrey070318修改：底盘电流环PID使用R1/R2独立参数。
+                .Kp = CHASSIS_CURRENT_PID_KP,
+                .Ki = CHASSIS_CURRENT_PID_KI,
+                .Kd = CHASSIS_CURRENT_PID_KD,
+                .IntegralLimit = CHASSIS_CURRENT_PID_INTEGRAL_LIMIT,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                .MaxOut = 15000,
+                .MaxOut = CHASSIS_CURRENT_PID_MAX_OUT,
             },
         },
         .controller_setting_init_config = {
@@ -89,23 +91,25 @@ void ChassisInit()
             .outer_loop_type = SPEED_LOOP,
             .close_loop_type = SPEED_LOOP | CURRENT_LOOP,
         },
-        .motor_type = M3508,
+        //Jeffrey070318修改：底盘电机类型使用R1/R2独立参数。
+        .motor_type = CHASSIS_MOTOR_TYPE,
     };
     //  @todo: 当前还没有设置电机的正反转,仍然需要手动添加reference的正负号,需要电机module的支持,待修改.
-    chassis_motor_config.can_init_config.tx_id = 1;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
+    //Jeffrey070318修改：底盘四轮电机ID使用R1/R2独立参数。
+    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_LF_ID;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_LF_REVERSE;
     motor_lf = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = 2;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
+    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_RF_ID;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_RF_REVERSE;
     motor_rf = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = 4;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
+    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_LB_ID;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_LB_REVERSE;
     motor_lb = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = 3;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
+    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_RB_ID;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_RB_REVERSE;
     motor_rb = DJIMotorInit(&chassis_motor_config);
 
 //    referee_data = UITaskInit(&huart1,&ui_data); // 裁判系统初始化,会同时初始化UI
@@ -141,12 +145,13 @@ void ChassisInit()
 
     // 前向保持PID初始化
     heading_pid_config = (PID_Init_Config_s){
-        .Kp = 70.0f,
-        .Ki = 1.5f,
-        .Kd = 120.0f,
-        .MaxOut = 2500.0f,
-        .DeadBand = 0.3f,
-        .IntegralLimit = 400.0f,
+        //Jeffrey070318修改：KEEP_FRONT角度环PID使用R1/R2独立参数。
+        .Kp = CHASSIS_HEADING_PID_KP,
+        .Ki = CHASSIS_HEADING_PID_KI,
+        .Kd = CHASSIS_HEADING_PID_KD,
+        .MaxOut = CHASSIS_HEADING_PID_MAX_OUT,
+        .DeadBand = CHASSIS_HEADING_PID_DEADBAND,
+        .IntegralLimit = CHASSIS_HEADING_PID_INTEGRAL_LIMIT,
         .Improve = PID_Integral_Limit | PID_Derivative_On_Measurement | PID_Trapezoid_Intergral,
     };
     PIDInit(&heading_pid, &heading_pid_config);
@@ -273,7 +278,8 @@ void ChassisTask()
         break;
     }
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
-        chassis_cmd_recv.wz = 2000;
+        //Jeffrey070318修改：自旋速度使用R1/R2独立底盘参数。
+        chassis_cmd_recv.wz = CHASSIS_ROTATE_WZ;
         break;
     default:
         break;

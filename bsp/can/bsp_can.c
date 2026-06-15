@@ -5,6 +5,8 @@
 #include "bsp_dwt.h"
 #include "bsp_log.h"
 #include "dmmotor.h"
+//Jeffrey070318增加：CAN反馈分发需要知道当前R1/R2的Delta电机数量和是否存在Serve机构。
+#include "robot_def.h"
 
 FDCAN_RxHeaderTypeDef RxHeader1;
 uint8_t g_Can1RxData[64];
@@ -308,11 +310,18 @@ static void FDCANFIFOxCallback(FDCAN_HandleTypeDef *_hfdcan, uint32_t fifox)
     }
 }
 
-extern Joint_Motor_t Delta_motor[3];
+//Jeffrey070318修改：Delta反馈数组长度跟随R1/R2条件编译，R2不会访问第三个击球电机。
+extern Joint_Motor_t Delta_motor[DELTA_MOTOR_NUM];
 extern Joint_Motor_t Pitch_motor;
+#if ROBOT_HAS_SERVE
+//Jeffrey070318修改：只有R1存在Serve电机反馈对象。
 extern Joint_Motor_t Serve_motor;
+#endif
 uint64_t can_rx_cnt[5] = {0}; // 接收计数器,用于调试
 FDCAN_RxHeaderTypeDef rxHeader;
+
+//Jeffrey070318增加：DM电机反馈帧ID由电机ID映射得到，跟随R1/R2机械臂ID参数变化。
+#define DM_MOTOR_FB_ID(motor_id) ((uint32_t)(0x10u + (motor_id)))
 
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
@@ -327,21 +336,27 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
             {
 				switch (rxHeader.Identifier)
 				{
-				case 0x11:Dm8009_Fbdata(&Delta_motor[0], myrx_data);
+				case DM_MOTOR_FB_ID(DELTA_MOTOR1_ID):Dm8009_Fbdata(&Delta_motor[0], myrx_data);
 					can_rx_cnt[0]++;
 					break;
-				case 0x12:Dm8009_Fbdata(&Delta_motor[1], myrx_data);
+				case DM_MOTOR_FB_ID(DELTA_MOTOR2_ID):Dm8009_Fbdata(&Delta_motor[1], myrx_data);
 					can_rx_cnt[1]++;
 					break;
-				case 0x13:Dm8009_Fbdata(&Delta_motor[2], myrx_data);
+#if DELTA_MOTOR_NUM >= 3u
+				//Jeffrey070318修改：第三个Delta电机只在R1三电机机械臂中解析。
+				case DM_MOTOR_FB_ID(DELTA_MOTOR3_ID):Dm8009_Fbdata(&Delta_motor[2], myrx_data);
 					can_rx_cnt[2]++;
 					break;
-				case 0x14:Dm8009_Fbdata(&Pitch_motor, myrx_data);
+#endif
+				case DM_MOTOR_FB_ID(PITCH_MOTOR_ID):Dm8009_Fbdata(&Pitch_motor, myrx_data);
 					can_rx_cnt[3]++;
 					break;
-				case 0x16:Dm8009_Fbdata(&Serve_motor, myrx_data);
+#if ROBOT_HAS_SERVE
+				//Jeffrey070318修改：Serve电机反馈只在R1编译进来。
+				case DM_MOTOR_FB_ID(SERVE_MOTOR_ID):Dm8009_Fbdata(&Serve_motor, myrx_data);
 					can_rx_cnt[4]++;
 					break;
+#endif
 				default:
 					break;
 				}
