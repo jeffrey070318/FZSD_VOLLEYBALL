@@ -2,14 +2,14 @@
 
 ## Decision
 
-The merged project adapts to the new `_YYP` design. `_YYP` is the main reference for the volleyball robot command flow, location layout, and vision/navigation protocol. The current merged project keeps its R1/R2 dual-robot conditional compilation work, but adapts those pieces to the `_YYP` interfaces instead of changing `_YYP` back to the older local interfaces.
+The merged project adapts to the new `_YYP` design. `_YYP` is the main reference for the volleyball robot command flow, location layout, and vision/navigation protocol. `_YYP` behavior is the baseline and should not be changed for style or old-project compatibility. The current merged project keeps its R1/R2 dual-robot conditional compilation work, but adapts those pieces to the `_YYP` interfaces instead of changing `_YYP` back to the older local interfaces.
 
 ## Scope
 
 This change covers:
 
 - `modules/master_machine/master_process.c/h`: migrate to the `_YYP` volleyball navigation protocol.
-- `application/cmd/robot_cmd.c`: keep the `_YYP` command flow and adapt current project additions around it.
+- `application/cmd/robot_cmd.c`: keep the `_YYP` command flow unchanged in behavior and adapt current project additions around it.
 - `application/robot_def.h`: keep R1/R2 selection and map common macros used by `_YYP` code to robot-specific parameters.
 - `application/chassis/chassis.c`: preserve existing R1/R2 chassis macro use.
 - `application/delta` and `application/Serve`: keep dual-robot motor count and serve/no-serve behavior, while reconnecting the cmd-to-delta chain.
@@ -20,6 +20,7 @@ Out of scope:
 - Reworking the Delta and Serve state machines beyond the minimal command-chain reconnection.
 - Restoring the old self-aim vision protocol as a parallel protocol.
 - Changing mechanical tuning values except where a missing R1/R2 mapping is required.
+- Changing `_YYP` control semantics, switch meanings, packet format, or automatic navigation behavior.
 
 ## Architecture
 
