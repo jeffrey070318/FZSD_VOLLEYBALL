@@ -21,8 +21,6 @@
 #define OPTICAL_FLOW_UPIXELS_PAYLOAD_LEN 10
 /** 默认角位移缩放系数,flow_integral = radians * 10000. */
 #define OPTICAL_FLOW_DEFAULT_SCALE 10000.0f
-//Jeffrey070318增加：当前工程INS/DM-IMU欧拉角输出为deg，光流融合内部统一使用rad。
-#define OPTICAL_FLOW_DEG_TO_RAD 0.017453292519943295f
 
 /**
  * @brief 光流模块通信协议类型.
@@ -67,23 +65,22 @@ typedef struct
     float velocity_x;    /**< X 方向速度,单位 m/s. */
     float velocity_y;    /**< Y 方向速度,单位 m/s. */
 
+    float delta_x_global;    /**< 世界系 X 方向单帧位移,单位 m. */
+    float delta_y_global;    /**< 世界系 Y 方向单帧位移,单位 m. */
+    float position_x_global; /**< 世界系 X 方向累计位移,单位 m. */
+    float position_y_global; /**< 世界系 Y 方向累计位移,单位 m. */
+    float velocity_x_global; /**< 世界系 X 方向速度,单位 m/s. */
+    float velocity_y_global; /**< 世界系 Y 方向速度,单位 m/s. */
+
     uint32_t frame_count;  /**< 通过帧校验的通信帧计数. */
     uint32_t update_count; /**< 通过质量门限并更新定位数据的帧计数. */
+    uint32_t bad_frame_count; /**< 质量/TOF 不达标被插值的坏帧计数. */
+    float    bad_frame_ratio;  /**< 坏帧占比 = bad_frame_count / frame_count. */
     uint8_t updated;       /**< 新有效定位数据标志,读取后调用 OpticalFlowClearUpdated() 清除. */
 } OpticalFlow_Data_s;
 
 /** 光流模块实例前向声明. */
 typedef struct optical_flow_instance OpticalFlowInstance;
-
-//Jeffrey070318增加：光流可选IMU融合输入，角度统一为rad，陀螺保持当前工程已有的rad/s。
-typedef struct
-{
-    float yaw;    /**< 航向角,单位 rad,用于车体系位移转世界系. */
-    float pitch;  /**< 俯仰角,单位 rad,用于TOF高度投影修正. */
-    float roll;   /**< 横滚角,单位 rad,用于TOF高度投影修正. */
-    float gyro_x; /**< 车体X轴角速度,单位 rad/s,用于扣除roll引入的伪光流. */
-    float gyro_y; /**< 车体Y轴角速度,单位 rad/s,用于扣除pitch引入的伪光流. */
-} OpticalFlow_IMU_Data_s;
 
 /**
  * @brief 光流模块初始化配置.
@@ -98,8 +95,7 @@ typedef struct
     int8_t x_direction;          /**< 安装方向修正: X 方向符号,填 0 默认 1. */
     int8_t y_direction;          /**< 安装方向修正: Y 方向符号,填 0 默认 1. */
     uint8_t min_valid_threshold; /**< 光流置信度门限,填 0 默认 50. */
-    const OpticalFlow_IMU_Data_s *imu_data; /**< Jeffrey070318增加：IMU融合数据指针,为空时保持纯光流积分. */
-    float deadzone_m;            /**< Jeffrey070318增加：单帧位移死区,单位m,填0关闭静止漂移抑制. */
+    uint8_t enable_global_frame; /**< 使能偏航角全局坐标系变换,非 0 使能,默认 0 关闭. */
 
     uint16_t daemon_reload_count;                   /**< 离线检测计数,填 0 默认 10. */
     void (*offline_callback)(void *);               /**< 模块离线回调,为空时使用默认串口重启逻辑. */
@@ -118,6 +114,13 @@ struct optical_flow_instance
     OpticalFlow_Init_Config_s config; /**< 初始化参数副本. */
     OpticalFlow_Data_s data;          /**< 最新解析数据. */
 
+    float yaw_deg; /**< 当前偏航角(度),由 OpticalFlowSetYaw() 更新,用于世界系旋转. */
+
+    float last_valid_vx;        /**< 上一帧有效机体系 X 速度(m/s), 坏帧插值用. */
+    float last_valid_vy;        /**< 上一帧有效机体系 Y 速度(m/s), 坏帧插值用. */
+    float last_valid_vx_global; /**< 上一帧有效世界系 X 速度(m/s), 坏帧插值用. */
+    float last_valid_vy_global; /**< 上一帧有效世界系 Y 速度(m/s), 坏帧插值用. */
+
     uint8_t payload[OPTICAL_FLOW_UPIXELS_PAYLOAD_LEN]; /**< 正在接收的 payload 缓存. */
     uint8_t payload_idx;                               /**< payload 接收下标. */
     uint8_t rx_state;                                  /**< 协议解析状态机状态. */
@@ -132,24 +135,6 @@ struct optical_flow_instance
  * @return OpticalFlowInstance* 光流模块实例指针.
  */
 OpticalFlowInstance *OpticalFlowInit(OpticalFlow_Init_Config_s *config);
-
-/**
- * @brief 将当前工程常见的deg欧拉角转换成光流融合需要的rad格式.
- *
- * @param imu_data 光流IMU数据缓存.
- * @param yaw_deg 航向角,单位deg.
- * @param pitch_deg 俯仰角,单位deg.
- * @param roll_deg 横滚角,单位deg.
- * @param gyro_x_rad_s 车体X轴角速度,单位rad/s.
- * @param gyro_y_rad_s 车体Y轴角速度,单位rad/s.
- */
-//Jeffrey070318增加：给INS/DM-IMU接入光流融合提供显式单位转换入口，避免deg/rad混用。
-void OpticalFlowIMUDataFromDegree(OpticalFlow_IMU_Data_s *imu_data,
-                                  float yaw_deg,
-                                  float pitch_deg,
-                                  float roll_deg,
-                                  float gyro_x_rad_s,
-                                  float gyro_y_rad_s);
 
 /**
  * @brief 获取最新解析数据.
@@ -181,6 +166,17 @@ void OpticalFlowResetPosition(OpticalFlowInstance *instance);
  * @param y Y 方向累计位移,单位 m.
  */
 void OpticalFlowSetPosition(OpticalFlowInstance *instance, float x, float y);
+
+/**
+ * @brief 更新当前偏航角,用于世界坐标系旋转变换.
+ *
+ * 由应用层在读取光流数据前调用,传入当前 IMU 偏航角.\n
+ * 当 enable_global_frame 使能时,ApplyPayload 会使用此角度将机体系位移旋转到世界系.
+ *
+ * @param instance 光流模块实例.
+ * @param yaw_deg 当前偏航角,单位度.
+ */
+void OpticalFlowSetYaw(OpticalFlowInstance *instance, float yaw_deg);
 
 /**
  * @brief 判断模块是否在线.

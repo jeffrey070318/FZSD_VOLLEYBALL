@@ -122,7 +122,6 @@ modules/BMI088/bmi088.c \
 modules/imu/BMI088driver.c \
 modules/imu/BMI088Middleware.c \
 modules/imu/ins_task.c \
-modules/imu/dm_imu.c \
 modules/master_machine/master_process.c \
 modules/master_machine/seasky_protocol.c \
 modules/motor/DJImotor/dji_motor.c \
@@ -144,6 +143,8 @@ application/robot.c \
 application/cmd/robot_cmd.c \
 application/delta/delta.c \
 application/serve/serve.c \
+application/location/dm_imu.c \
+application/location/optical_flow.c \
 Core/Src/i2c.c
 
 # ASM sources
@@ -225,6 +226,7 @@ C_INCLUDES =  \
 -Iapplication/delta \
 -Iapplication/serve \
 -Iapplication/cmd \
+-Iapplication/location \
 -Ibsp/dwt \
 -Ibsp/can \
 -Ibsp/usart \

@@ -8,6 +8,8 @@
 //Jeffrey070318修改：Serve状态机和消息结构迁移到robot_def.h，避免general_def.h承载app层语义。
 #include "robot_def.h"
 
+#if ROBOT_HAS_SERVE
+
 //Jeffrey070318修改：Serve位置阈值优先使用robot_def.h统一配置，这里只保留缺省兜底。
 #ifndef SERVE_POSITION_THRESHOLD
 #define SERVE_POSITION_THRESHOLD 0.15f
@@ -61,7 +63,7 @@ void ServeInit(void)
     Serve_motor = (Joint_Motor_t){
         .mode = MIT_MODE,
         .para = {
-            .id = 6,
+            .id = SERVE_MOTOR_ID,
             .state = DISABLE_STATE,
             .p_int = 0,
             .v_int = 0,
@@ -155,3 +157,5 @@ void ServeTask()
     serve_feedback_data.test_seq = ++serve_test_seq;
     PubPushMessage(serve_pub, (void *)&serve_feedback_data);
 }
+
+#endif // ROBOT_HAS_SERVE

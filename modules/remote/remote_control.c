@@ -25,7 +25,6 @@ static uint8_t rc_init_flag = 0; // 遥控器初始化标志位
 // 遥控器拥有的串口实例,因为遥控器是单例,所以这里只有一个,就不封装了
 static USARTInstance *rc_usart_instance;
 static DaemonInstance *rc_daemon_instance;
-extern uint8_t FLAG1;
 
 /**
  * @brief 矫正遥控器摇杆的值,超过660或者小于-660的值都认为是无效值,置0
@@ -167,13 +166,10 @@ static void sbus_to_rc(const uint8_t *sbus_buf)
     // 左开关（SWB）→ switch_left
     if (ch[4] >  SW_THRESHOLD) {
         rc_ctrl[TEMP].rc.switch_left = RC_SW_DOWN;    // 下
-        FLAG1 = 0;
     } else if (ch[4] <  -SW_THRESHOLD) {
         rc_ctrl[TEMP].rc.switch_left = RC_SW_UP;  // 上
-        FLAG1 = 2;
     }  else {
         rc_ctrl[TEMP].rc.switch_left = RC_SW_MID;  // 中（仅三档开关有效）
-        FLAG1 = 1;
     }
     // 右开关（SWC）→ switch_right（注意i6x只有SWC开关是3档的）
     if (ch[5] >  SW_THRESHOLD) {
