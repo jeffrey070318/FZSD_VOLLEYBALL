@@ -13,4 +13,11 @@ void ChassisInit();
  */
 void ChassisTask();
 
+/**
+ * @brief 底盘单模块直测任务,用于绕过CMD直接给底盘固定速度.
+ *
+ */
+// Jeffrey070318增加：提供底盘直测入口，打开CHASSIS_DIRECT_TEST后由RobotTask直接调用。
+void ChassisDirectTestTask(void);
+
 #endif // CHASSIS_H

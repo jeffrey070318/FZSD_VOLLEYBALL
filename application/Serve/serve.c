@@ -158,4 +158,10 @@ void ServeTask()
     PubPushMessage(serve_pub, (void *)&serve_feedback_data);
 }
 
+void ServeDirectTestTask(void)
+{
+    // Jeffrey070318增加：Serve直测绕过CMD/Delta，直接运行发球拨杆本地状态机。
+    ServeTask();
+}
+
 #endif // ROBOT_HAS_SERVE

@@ -234,18 +234,9 @@ static void EstimateSpeed()
     //  ...
 }
 
-/* 机器人底盘控制核心任务 */
-void ChassisTask()
+// Jeffrey070318增加：底盘控制执行内核，正常模式和直测模式共用这一段输出逻辑。
+static void ChassisRunControlStep(void)
 {
-    // 后续增加没收到消息的处理(双板的情况)
-    // 获取新的控制信息
-#ifdef ONE_BOARD
-    SubGetMessage(chassis_sub, &chassis_cmd_recv);
-#endif
-#ifdef CHASSIS_BOARD
-    chassis_cmd_recv = *(Chassis_Ctrl_Cmd_s *)CANCommGet(chasiss_can_comm);
-#endif // CHASSIS_BOARD
-
     if (chassis_cmd_recv.chassis_mode == CHASSIS_ZERO_FORCE)
     { // 如果出现重要模块离线或遥控器设置为急停,让电机停止
         DJIMotorStop(motor_lf);
@@ -300,6 +291,21 @@ void ChassisTask()
 
     // 根据电机的反馈速度和IMU(如果有)计算真实速度
     EstimateSpeed();
+}
+
+/* 机器人底盘控制核心任务 */
+void ChassisTask()
+{
+    // 后续增加没收到消息的处理(双板的情况)
+    // 获取新的控制信息
+#ifdef ONE_BOARD
+    SubGetMessage(chassis_sub, &chassis_cmd_recv);
+#endif
+#ifdef CHASSIS_BOARD
+    chassis_cmd_recv = *(Chassis_Ctrl_Cmd_s *)CANCommGet(chasiss_can_comm);
+#endif // CHASSIS_BOARD
+
+    ChassisRunControlStep();
 
     // // 获取裁判系统数据   建议将裁判系统与底盘分离，所以此处数据应使用消息中心发送
     // // 我方颜色id小于7是红色,大于7是蓝色,注意这里发送的是对方的颜色, 0:blue , 1:red
@@ -315,4 +321,15 @@ void ChassisTask()
 #ifdef CHASSIS_BOARD
     CANCommSend(chasiss_can_comm, (void *)&chassis_feedback_data);
 #endif // CHASSIS_BOARD
+}
+
+void ChassisDirectTestTask(void)
+{
+    // Jeffrey070318增加：底盘直测绕过CMD，速度从robot_def.h的CHASSIS_DIRECT_TEST_*宏读取。
+    chassis_cmd_recv.chassis_mode = CHASSIS_DIRECT_TEST_MODE;
+    chassis_cmd_recv.vx = CHASSIS_DIRECT_TEST_VX;
+    chassis_cmd_recv.vy = CHASSIS_DIRECT_TEST_VY;
+    chassis_cmd_recv.wz = CHASSIS_DIRECT_TEST_WZ;
+    chassis_cmd_recv.offset_angle = 0.0f;
+    ChassisRunControlStep();
 }

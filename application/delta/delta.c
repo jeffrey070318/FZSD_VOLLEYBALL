@@ -468,3 +468,10 @@ void Delta_Motion()
         // }
     }
 }
+
+void DeltaDirectTestTask(void)
+{
+    // Jeffrey070318增加：Delta直测绕过CMD，先运行基础状态机保证电机使能，再执行已有测试动作。
+    DeltaTask();
+    Delta_Motion();
+}

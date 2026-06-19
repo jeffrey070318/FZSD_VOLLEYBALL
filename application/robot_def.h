@@ -8,9 +8,9 @@
  * @copyright Copyright (c) HNU YueLu EC 2022 all rights reserved
  *
  */
-#pragma once // 可以用#pragma once代替#ifndef ROBOT_DEF_H(header guard)
+#pragma once
 #ifndef ROBOT_DEF_H
-#define ROBOT_DEF_H // 头文件保护宏，防止重复包含
+#define ROBOT_DEF_H
 
 #include "ins_task.h"
 #include "master_process.h"
@@ -20,21 +20,31 @@
 /* ============================== 编译选择 ============================== */
 /* 开发板类型定义,烧录时注意不要弄错对应功能;修改定义后需要重新编译,只能存在一个定义! */
 #define ONE_BOARD // 单板控制整车
-// #define CHASSIS_BOARD // 只编译底盘板程序
-// #define GIMBAL_BOARD  // 只编译云台板程序
+                  // #define CHASSIS_BOARD // 只编译底盘板程序
+                  // #define GIMBAL_BOARD  // 只编译云台板程序
 
 // Jeffrey070318增加：整车类型条件编译开关，R1为三击球电机+发球拨杆，R2为双击球电机且无发球拨杆。
-// #define ROBOT_R1 // 当前编译R1整车
-#define ROBOT_R2 // 当前编译R2整车
+#define ROBOT_R1 // 当前编译R1整车
+// #define ROBOT_R2 // 当前编译R2整车
 
 #define VISION_USE_VCP // 视觉数据走USB虚拟串口
 // #define VISION_USE_UART // 视觉数据走硬件串口
+
+// Jeffrey070318增加：单模块直测宏默认关闭，打开其中一个后RobotTask会绕过CMD只跑对应模块测试入口。
+// #define CHASSIS_DIRECT_TEST // 底盘单模块直测模式
+// #define DELTA_DIRECT_TEST   // Delta机械臂单模块直测模式
+// #define SERVE_DIRECT_TEST   // R1发球拨杆单模块直测模式
 
 // 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
 #if (defined(ONE_BOARD) && defined(CHASSIS_BOARD)) || \
     (defined(ONE_BOARD) && defined(GIMBAL_BOARD)) ||  \
     (defined(CHASSIS_BOARD) && defined(GIMBAL_BOARD))
 #error Conflict board definition! You can only define one board type.
+#endif
+
+// Jeffrey070318增加：单模块直测一次只允许打开一个，避免多个模块同时抢电机或CAN资源。
+#if (defined(CHASSIS_DIRECT_TEST) + defined(DELTA_DIRECT_TEST) + defined(SERVE_DIRECT_TEST)) > 1
+#error Conflict direct test definition! Enable only one direct test mode.
 #endif
 
 // Jeffrey070318增加：检查R1/R2定义冲突，确保同一次编译只生成一种整车固件。
@@ -57,6 +67,12 @@
 #define GYRO2GIMBAL_DIR_YAW 1   // IMU yaw方向相对云台的符号
 #define GYRO2GIMBAL_DIR_PITCH 1 // IMU pitch方向相对云台的符号
 #define GYRO2GIMBAL_DIR_ROLL 1  // IMU roll方向相对云台的符号
+
+/* 单模块直测参数 */
+#define CHASSIS_DIRECT_TEST_MODE CHASSIS_NO_FOLLOW // 底盘直测默认模式
+#define CHASSIS_DIRECT_TEST_VX 0.0f                // 底盘直测前后速度
+#define CHASSIS_DIRECT_TEST_VY 0.0f                // 底盘直测左右速度
+#define CHASSIS_DIRECT_TEST_WZ 0.0f                // 底盘直测旋转速度
 
 /* ============================== R1参数 ============================== */
 // Jeffrey070318修改：R1参数按底盘、导航、CMD、机械臂分组，避免不同车种参数混在一起。
@@ -354,6 +370,18 @@
 #define DELTA_TEST_TRIGGER_POS DELTA_R2_TEST_TRIGGER_POS                         // 业务代码使用的测试触发位置
 #else
 #error Robot type undefined! Define ROBOT_R1 or ROBOT_R2 in robot_def.h.
+#endif
+
+// Jeffrey070318增加：统一标记当前是否进入单模块直测，业务入口据此决定是否绕过CMD。
+#if defined(CHASSIS_DIRECT_TEST) || defined(DELTA_DIRECT_TEST) || defined(SERVE_DIRECT_TEST)
+#define ROBOT_DIRECT_TEST 1 // 当前编译为单模块直测模式
+#else
+#define ROBOT_DIRECT_TEST 0 // 当前编译为正常整车模式
+#endif
+
+// Jeffrey070318增加：R2没有发球拨杆，禁止打开Serve直测模式。
+#if defined(SERVE_DIRECT_TEST) && !ROBOT_HAS_SERVE
+#error SERVE_DIRECT_TEST requires ROBOT_HAS_SERVE.
 #endif
 
 #pragma pack(1) // 压缩结构体,取消字节对齐,下面的数据都可能被传输
