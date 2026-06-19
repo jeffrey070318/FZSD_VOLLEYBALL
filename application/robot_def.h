@@ -10,25 +10,25 @@
  */
 #pragma once // 可以用#pragma once代替#ifndef ROBOT_DEF_H(header guard)
 #ifndef ROBOT_DEF_H
-#define ROBOT_DEF_H
+#define ROBOT_DEF_H // 头文件保护宏，防止重复包含
 
 #include "ins_task.h"
 #include "master_process.h"
 #include "stdint.h"
 
-//Jeffrey070318修改：整理robot_def.h宏定义顺序，按“选择开关-公共参数-R1参数-R2参数-统一映射”分区。
+// Jeffrey070318修改：整理robot_def.h宏定义顺序，按“选择开关-公共参数-R1参数-R2参数-统一映射”分区。
 /* ============================== 编译选择 ============================== */
 /* 开发板类型定义,烧录时注意不要弄错对应功能;修改定义后需要重新编译,只能存在一个定义! */
 #define ONE_BOARD // 单板控制整车
-// #define CHASSIS_BOARD // 底盘板
-// #define GIMBAL_BOARD  // 云台板
+// #define CHASSIS_BOARD // 只编译底盘板程序
+// #define GIMBAL_BOARD  // 只编译云台板程序
 
-//Jeffrey070318增加：整车类型条件编译开关，R1为三击球电机+发球拨杆，R2为双击球电机且无发球拨杆。
-#define ROBOT_R1
-// #define ROBOT_R2
+// Jeffrey070318增加：整车类型条件编译开关，R1为三击球电机+发球拨杆，R2为双击球电机且无发球拨杆。
+// #define ROBOT_R1 // 当前编译R1整车
+#define ROBOT_R2 // 当前编译R2整车
 
-#define VISION_USE_VCP  // 使用虚拟串口发送视觉数据
-// #define VISION_USE_UART // 使用串口发送视觉数据
+#define VISION_USE_VCP // 视觉数据走USB虚拟串口
+// #define VISION_USE_UART // 视觉数据走硬件串口
 
 // 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
 #if (defined(ONE_BOARD) && defined(CHASSIS_BOARD)) || \
@@ -37,265 +37,323 @@
 #error Conflict board definition! You can only define one board type.
 #endif
 
-//Jeffrey070318增加：检查R1/R2定义冲突，确保同一次编译只生成一种整车固件。
+// Jeffrey070318增加：检查R1/R2定义冲突，确保同一次编译只生成一种整车固件。
 #if defined(ROBOT_R1) && defined(ROBOT_R2)
 #error Conflict robot type definition! You can only define ROBOT_R1 or ROBOT_R2.
 #endif
 
 /* ============================== 公共参数 ============================== */
 /* 机器人重要参数定义,注意根据不同机器人进行修改,浮点数需要以.0或f结尾,无符号以u结尾 */
-#define YAW_CHASSIS_ALIGN_ECD 2711  // 云台和底盘对齐指向相同方向时的电机编码器值
-#define YAW_ECD_GREATER_THAN_4096 0 // ALIGN_ECD值是否大于4096,是为1,否为0
-#define PITCH_HORIZON_ECD 3412      // pitch水平时电机的角度
-#define PITCH_MAX_ANGLE 0           // pitch最大角度
-#define PITCH_MIN_ANGLE 0           // pitch最小角度
+#define YAW_CHASSIS_ALIGN_ECD 2711  // 云台和底盘正对时的yaw编码器值
+#define YAW_ECD_GREATER_THAN_4096 0 // yaw对齐编码值是否跨过4096
+#define PITCH_HORIZON_ECD 3412      // pitch水平位置对应的编码器值
+#define PITCH_MAX_ANGLE 0           // pitch允许的最大角度
+#define PITCH_MIN_ANGLE 0           // pitch允许的最小角度
 
-#define ONE_BULLET_DELTA_ANGLE 36    // 发射一发弹丸拨盘转动的距离
-#define REDUCTION_RATIO_LOADER 49.0f // 拨盘电机的减速比
-#define NUM_PER_CIRCLE 10            // 拨盘一圈的装载量
+#define ONE_BULLET_DELTA_ANGLE 36    // 拨盘发一球需要转过的角度
+#define REDUCTION_RATIO_LOADER 49.0f // 拨盘电机减速比
+#define NUM_PER_CIRCLE 10            // 拨盘转一圈对应的装球数量
 
-#define GYRO2GIMBAL_DIR_YAW 1   // 陀螺仪数据相较于云台的yaw方向
-#define GYRO2GIMBAL_DIR_PITCH 1 // 陀螺仪数据相较于云台的pitch方向
-#define GYRO2GIMBAL_DIR_ROLL 1  // 陀螺仪数据相较于云台的roll方向
+#define GYRO2GIMBAL_DIR_YAW 1   // IMU yaw方向相对云台的符号
+#define GYRO2GIMBAL_DIR_PITCH 1 // IMU pitch方向相对云台的符号
+#define GYRO2GIMBAL_DIR_ROLL 1  // IMU roll方向相对云台的符号
 
 /* ============================== R1参数 ============================== */
-//Jeffrey070318修改：R1参数按底盘、导航、CMD、机械臂分组，避免不同车种参数混在一起。
+// Jeffrey070318修改：R1参数按底盘、导航、CMD、机械臂分组，避免不同车种参数混在一起。
 /* R1 chassis */
-#define CHASSIS_R1_WHEEL_BASE 400.0f
-#define CHASSIS_R1_TRACK_WIDTH 400.0f
-#define CHASSIS_R1_CENTER_OFFSET_X 0.0f
-#define CHASSIS_R1_CENTER_OFFSET_Y 0.0f
-#define CHASSIS_R1_RADIUS_WHEEL 60.0f
-#define CHASSIS_R1_REDUCTION_RATIO_WHEEL 19.0f
-#define CHASSIS_R1_MOTOR_LF_ID 1u
-#define CHASSIS_R1_MOTOR_RF_ID 2u
-#define CHASSIS_R1_MOTOR_LB_ID 4u
-#define CHASSIS_R1_MOTOR_RB_ID 3u
-#define CHASSIS_R1_MOTOR_TYPE M3508
-#define CHASSIS_R1_MOTOR_LF_REVERSE MOTOR_DIRECTION_REVERSE
-#define CHASSIS_R1_MOTOR_RF_REVERSE MOTOR_DIRECTION_REVERSE
-#define CHASSIS_R1_MOTOR_LB_REVERSE MOTOR_DIRECTION_REVERSE
-#define CHASSIS_R1_MOTOR_RB_REVERSE MOTOR_DIRECTION_REVERSE
-#define CHASSIS_R1_SPEED_PID_KP 10.0f
-#define CHASSIS_R1_SPEED_PID_KI 0.0f
-#define CHASSIS_R1_SPEED_PID_KD 0.0f
-#define CHASSIS_R1_SPEED_PID_INTEGRAL_LIMIT 3000.0f
-#define CHASSIS_R1_SPEED_PID_MAX_OUT 12000.0f
-#define CHASSIS_R1_CURRENT_PID_KP 0.5f
-#define CHASSIS_R1_CURRENT_PID_KI 0.0f
-#define CHASSIS_R1_CURRENT_PID_KD 0.0f
-#define CHASSIS_R1_CURRENT_PID_INTEGRAL_LIMIT 3000.0f
-#define CHASSIS_R1_CURRENT_PID_MAX_OUT 15000.0f
-#define CHASSIS_R1_HEADING_PID_KP 70.0f
-#define CHASSIS_R1_HEADING_PID_KI 1.5f
-#define CHASSIS_R1_HEADING_PID_KD 120.0f
-#define CHASSIS_R1_HEADING_PID_MAX_OUT 2500.0f
-#define CHASSIS_R1_HEADING_PID_DEADBAND 0.3f
-#define CHASSIS_R1_HEADING_PID_INTEGRAL_LIMIT 400.0f
-#define CHASSIS_R1_ROTATE_WZ 2000.0f
+#define CHASSIS_R1_WHEEL_BASE 400.0f                        // R1前后轮中心距
+#define CHASSIS_R1_TRACK_WIDTH 400.0f                       // R1左右轮中心距
+#define CHASSIS_R1_CENTER_OFFSET_X 0.0f                     // R1云台中心相对底盘中心X偏移
+#define CHASSIS_R1_CENTER_OFFSET_Y 0.0f                     // R1云台中心相对底盘中心Y偏移
+#define CHASSIS_R1_RADIUS_WHEEL 60.0f                       // R1轮子半径
+#define CHASSIS_R1_REDUCTION_RATIO_WHEEL 19.0f              // R1轮组电机减速比
+#define CHASSIS_R1_MOTOR_LF_ID 1u                           // R1左前轮电机CAN ID
+#define CHASSIS_R1_MOTOR_RF_ID 2u                           // R1右前轮电机CAN ID
+#define CHASSIS_R1_MOTOR_LB_ID 4u                           // R1左后轮电机CAN ID
+#define CHASSIS_R1_MOTOR_RB_ID 3u                           // R1右后轮电机CAN ID
+#define CHASSIS_R1_MOTOR_TYPE M3508                         // R1底盘电机型号
+#define CHASSIS_R1_MOTOR_LF_REVERSE MOTOR_DIRECTION_REVERSE // R1左前轮电机方向
+#define CHASSIS_R1_MOTOR_RF_REVERSE MOTOR_DIRECTION_REVERSE // R1右前轮电机方向
+#define CHASSIS_R1_MOTOR_LB_REVERSE MOTOR_DIRECTION_REVERSE // R1左后轮电机方向
+#define CHASSIS_R1_MOTOR_RB_REVERSE MOTOR_DIRECTION_REVERSE // R1右后轮电机方向
+#define CHASSIS_R1_SPEED_PID_KP 10.0f                       // R1底盘速度环P
+#define CHASSIS_R1_SPEED_PID_KI 0.0f                        // R1底盘速度环I
+#define CHASSIS_R1_SPEED_PID_KD 0.0f                        // R1底盘速度环D
+#define CHASSIS_R1_SPEED_PID_INTEGRAL_LIMIT 3000.0f         // R1底盘速度环积分限幅
+#define CHASSIS_R1_SPEED_PID_MAX_OUT 12000.0f               // R1底盘速度环输出限幅
+#define CHASSIS_R1_CURRENT_PID_KP 0.5f                      // R1底盘电流环P
+#define CHASSIS_R1_CURRENT_PID_KI 0.0f                      // R1底盘电流环I
+#define CHASSIS_R1_CURRENT_PID_KD 0.0f                      // R1底盘电流环D
+#define CHASSIS_R1_CURRENT_PID_INTEGRAL_LIMIT 3000.0f       // R1底盘电流环积分限幅
+#define CHASSIS_R1_CURRENT_PID_MAX_OUT 15000.0f             // R1底盘电流环输出限幅
+#define CHASSIS_R1_HEADING_PID_KP 70.0f                     // R1车头保持角度环P
+#define CHASSIS_R1_HEADING_PID_KI 1.5f                      // R1车头保持角度环I
+#define CHASSIS_R1_HEADING_PID_KD 120.0f                    // R1车头保持角度环D
+#define CHASSIS_R1_HEADING_PID_MAX_OUT 2500.0f              // R1车头保持角度环输出限幅
+#define CHASSIS_R1_HEADING_PID_DEADBAND 0.3f                // R1车头保持角度死区
+#define CHASSIS_R1_HEADING_PID_INTEGRAL_LIMIT 400.0f        // R1车头保持角度环积分限幅
+#define CHASSIS_R1_ROTATE_WZ 2000.0f                        // R1小陀螺旋转角速度
 
 /* R1 navigation and cmd */
-#define NAV_R1_MAX_SPEED 10000.0f
-#define NAV_R1_SPEED_GAIN 6000.0f
-#define NAV_R1_ARRIVAL_DIST 0.15f
-#define CMD_R1_REMOTE_MOVE_SCALE 30.0f
-#define CMD_R1_REMOTE_YAW_SCALE 4.0f
-#define CMD_R1_REMOTE_DEADBAND 50
-#define CMD_R1_REMOTE_STOP_DIAL_THRESHOLD 300
+#define NAV_R1_MAX_SPEED 10000.0f             // R1导航速度上限
+#define NAV_R1_SPEED_GAIN 6000.0f             // R1导航距离到速度的比例
+#define NAV_R1_ARRIVAL_DIST 0.15f             // R1导航到点判定距离
+#define CMD_R1_REMOTE_MOVE_SCALE 30.0f        // R1遥控器平移摇杆比例
+#define CMD_R1_REMOTE_YAW_SCALE 4.0f          // R1遥控器旋转摇杆比例
+#define CMD_R1_REMOTE_DEADBAND 50             // R1遥控器摇杆死区
+#define CMD_R1_REMOTE_STOP_DIAL_THRESHOLD 300 // R1遥控器拨轮急停阈值
 
 /* R1 arm */
-#define DELTA_R1_MOTOR_NUM 3u
-#define DELTA_R1_MOTOR1_ID 1u
-#define DELTA_R1_MOTOR2_ID 2u
-#define DELTA_R1_MOTOR3_ID 3u
-#define PITCH_R1_MOTOR_ID 4u
-#define SERVE_R1_MOTOR_ID 6u
-#define DELTA_R1_SPEED 16.0f
-#define DELTA_R1_POSITION_THRESHOLD 0.15f
-#define SERVE_R1_POSITION_THRESHOLD 0.15f
-#define MIT_DELTA_R1_HIT_KP 300.0f
-#define MIT_DELTA_R1_HIT_KD 3.0f
-#define MIT_DELTA_R1_HIT_TORQ 5.0f
-#define MIT_DELTA_R1_GET_KP 200.0f
-#define MIT_DELTA_R1_GET_KD 3.0f
-#define MIT_DELTA_R1_GET_TORQ 3.0f
-#define MIT_DELTA_R1_SLOW_KP 50.0f
-#define MIT_DELTA_R1_SLOW_KD 3.0f
-#define MIT_DELTA_R1_SLOW_TORQ 0.0f
-#define MIT_PITCH_R1_HIT_KP 250.0f
-#define MIT_PITCH_R1_HIT_KD 2.0f
-#define MIT_PITCH_R1_HIT_TORQ 8.0f
-#define MIT_PITCH_R1_GET_KP 100.0f
-#define MIT_PITCH_R1_GET_KD 1.0f
-#define MIT_PITCH_R1_GET_TORQ 2.0f
-#define DELTA_R1_ORIGINAL_POS 0.0f
-#define DELTA_R1_HIT_1_POS 0.0f
-#define DELTA_R1_BACK_POS 0.0f
-#define DELTA_R1_TEST_DOWN_POS -0.8f
-#define DELTA_R1_TEST_BACK_POS -0.4f
-#define DELTA_R1_TEST_TRIGGER_POS -0.18f
+#define DELTA_R1_MOTOR_NUM 3u             // R1击球机构电机数量
+#define DELTA_R1_MOTOR1_ID 1u             // R1击球电机1 CAN ID
+#define DELTA_R1_MOTOR2_ID 2u             // R1击球电机2 CAN ID
+#define DELTA_R1_MOTOR3_ID 3u             // R1击球电机3 CAN ID
+#define PITCH_R1_MOTOR_ID 4u              // R1机械臂pitch电机CAN ID
+#define SERVE_R1_MOTOR_ID 6u              // R1发球拨杆电机CAN ID
+#define DELTA_R1_SPEED 16.0f              // R1击球机构目标运动速度
+#define DELTA_R1_POSITION_THRESHOLD 0.15f // R1击球机构到位误差阈值
+#define SERVE_R1_POSITION_THRESHOLD 0.15f // R1发球拨杆到位误差阈值
+#define MIT_DELTA_R1_HIT_KP 300.0f        // R1击球动作delta电机MIT位置P
+#define MIT_DELTA_R1_HIT_KD 3.0f          // R1击球动作delta电机MIT速度D
+#define MIT_DELTA_R1_HIT_TORQ 5.0f        // R1击球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R1_GET_KP 200.0f        // R1接球动作delta电机MIT位置P
+#define MIT_DELTA_R1_GET_KD 3.0f          // R1接球动作delta电机MIT速度D
+#define MIT_DELTA_R1_GET_TORQ 3.0f        // R1接球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R1_SLOW_KP 50.0f        // R1慢速动作delta电机MIT位置P
+#define MIT_DELTA_R1_SLOW_KD 3.0f         // R1慢速动作delta电机MIT速度D
+#define MIT_DELTA_R1_SLOW_TORQ 0.0f       // R1慢速动作delta电机MIT前馈力矩
+#define MIT_PITCH_R1_HIT_KP 250.0f        // R1击球动作pitch电机MIT位置P
+#define MIT_PITCH_R1_HIT_KD 2.0f          // R1击球动作pitch电机MIT速度D
+#define MIT_PITCH_R1_HIT_TORQ 8.0f        // R1击球动作pitch电机MIT前馈力矩
+#define MIT_PITCH_R1_GET_KP 100.0f        // R1接球动作pitch电机MIT位置P
+#define MIT_PITCH_R1_GET_KD 1.0f          // R1接球动作pitch电机MIT速度D
+#define MIT_PITCH_R1_GET_TORQ 2.0f        // R1接球动作pitch电机MIT前馈力矩
+#define DELTA_R1_ORIGINAL_POS 0.0f        // R1击球机构初始目标位置
+#define DELTA_R1_HIT_1_POS 0.0f           // R1击球机构击球目标位置
+#define DELTA_R1_BACK_POS 0.0f            // R1击球机构回收目标位置
+#define DELTA_R1_TEST_DOWN_POS -0.8f      // R1测试下压目标位置
+#define DELTA_R1_TEST_BACK_POS -0.4f      // R1测试回收目标位置
+#define DELTA_R1_TEST_TRIGGER_POS -0.18f  // R1测试触发目标位置
 
 /* ============================== R2参数 ============================== */
-//Jeffrey070318修改：R2参数独立成块，后续调参时只进入R2区域修改。
+// Jeffrey070318修改：R2参数独立成块，后续调参时只进入R2区域修改。
 /* R2 chassis */
-#define CHASSIS_R2_WHEEL_BASE 400.0f
-#define CHASSIS_R2_TRACK_WIDTH 400.0f
-#define CHASSIS_R2_CENTER_OFFSET_X 0.0f
-#define CHASSIS_R2_CENTER_OFFSET_Y 0.0f
-#define CHASSIS_R2_RADIUS_WHEEL 60.0f
-#define CHASSIS_R2_REDUCTION_RATIO_WHEEL 19.0f
-#define CHASSIS_R2_MOTOR_LF_ID 1u
-#define CHASSIS_R2_MOTOR_RF_ID 2u
-#define CHASSIS_R2_MOTOR_LB_ID 4u
-#define CHASSIS_R2_MOTOR_RB_ID 3u
-#define CHASSIS_R2_MOTOR_TYPE M3508
-#define CHASSIS_R2_MOTOR_LF_REVERSE MOTOR_DIRECTION_REVERSE
-#define CHASSIS_R2_MOTOR_RF_REVERSE MOTOR_DIRECTION_REVERSE
-#define CHASSIS_R2_MOTOR_LB_REVERSE MOTOR_DIRECTION_REVERSE
-#define CHASSIS_R2_MOTOR_RB_REVERSE MOTOR_DIRECTION_REVERSE
-#define CHASSIS_R2_SPEED_PID_KP 10.0f
-#define CHASSIS_R2_SPEED_PID_KI 0.0f
-#define CHASSIS_R2_SPEED_PID_KD 0.0f
-#define CHASSIS_R2_SPEED_PID_INTEGRAL_LIMIT 3000.0f
-#define CHASSIS_R2_SPEED_PID_MAX_OUT 12000.0f
-#define CHASSIS_R2_CURRENT_PID_KP 0.5f
-#define CHASSIS_R2_CURRENT_PID_KI 0.0f
-#define CHASSIS_R2_CURRENT_PID_KD 0.0f
-#define CHASSIS_R2_CURRENT_PID_INTEGRAL_LIMIT 3000.0f
-#define CHASSIS_R2_CURRENT_PID_MAX_OUT 15000.0f
-#define CHASSIS_R2_HEADING_PID_KP 70.0f
-#define CHASSIS_R2_HEADING_PID_KI 1.5f
-#define CHASSIS_R2_HEADING_PID_KD 120.0f
-#define CHASSIS_R2_HEADING_PID_MAX_OUT 2500.0f
-#define CHASSIS_R2_HEADING_PID_DEADBAND 0.3f
-#define CHASSIS_R2_HEADING_PID_INTEGRAL_LIMIT 400.0f
-#define CHASSIS_R2_ROTATE_WZ 2000.0f
+#define CHASSIS_R2_WHEEL_BASE 400.0f                        // R2前后轮中心距
+#define CHASSIS_R2_TRACK_WIDTH 400.0f                       // R2左右轮中心距
+#define CHASSIS_R2_CENTER_OFFSET_X 0.0f                     // R2云台中心相对底盘中心X偏移
+#define CHASSIS_R2_CENTER_OFFSET_Y 0.0f                     // R2云台中心相对底盘中心Y偏移
+#define CHASSIS_R2_RADIUS_WHEEL 60.0f                       // R2轮子半径
+#define CHASSIS_R2_REDUCTION_RATIO_WHEEL 19.0f              // R2轮组电机减速比
+#define CHASSIS_R2_MOTOR_LF_ID 1u                           // R2左前轮电机CAN ID
+#define CHASSIS_R2_MOTOR_RF_ID 2u                           // R2右前轮电机CAN ID
+#define CHASSIS_R2_MOTOR_LB_ID 4u                           // R2左后轮电机CAN ID
+#define CHASSIS_R2_MOTOR_RB_ID 3u                           // R2右后轮电机CAN ID
+#define CHASSIS_R2_MOTOR_TYPE M3508                         // R2底盘电机型号
+#define CHASSIS_R2_MOTOR_LF_REVERSE MOTOR_DIRECTION_REVERSE // R2左前轮电机方向
+#define CHASSIS_R2_MOTOR_RF_REVERSE MOTOR_DIRECTION_REVERSE // R2右前轮电机方向
+#define CHASSIS_R2_MOTOR_LB_REVERSE MOTOR_DIRECTION_REVERSE // R2左后轮电机方向
+#define CHASSIS_R2_MOTOR_RB_REVERSE MOTOR_DIRECTION_REVERSE // R2右后轮电机方向
+#define CHASSIS_R2_SPEED_PID_KP 10.0f                       // R2底盘速度环P
+#define CHASSIS_R2_SPEED_PID_KI 0.0f                        // R2底盘速度环I
+#define CHASSIS_R2_SPEED_PID_KD 0.0f                        // R2底盘速度环D
+#define CHASSIS_R2_SPEED_PID_INTEGRAL_LIMIT 3000.0f         // R2底盘速度环积分限幅
+#define CHASSIS_R2_SPEED_PID_MAX_OUT 12000.0f               // R2底盘速度环输出限幅
+#define CHASSIS_R2_CURRENT_PID_KP 0.5f                      // R2底盘电流环P
+#define CHASSIS_R2_CURRENT_PID_KI 0.0f                      // R2底盘电流环I
+#define CHASSIS_R2_CURRENT_PID_KD 0.0f                      // R2底盘电流环D
+#define CHASSIS_R2_CURRENT_PID_INTEGRAL_LIMIT 3000.0f       // R2底盘电流环积分限幅
+#define CHASSIS_R2_CURRENT_PID_MAX_OUT 15000.0f             // R2底盘电流环输出限幅
+#define CHASSIS_R2_HEADING_PID_KP 70.0f                     // R2车头保持角度环P
+#define CHASSIS_R2_HEADING_PID_KI 1.5f                      // R2车头保持角度环I
+#define CHASSIS_R2_HEADING_PID_KD 120.0f                    // R2车头保持角度环D
+#define CHASSIS_R2_HEADING_PID_MAX_OUT 2500.0f              // R2车头保持角度环输出限幅
+#define CHASSIS_R2_HEADING_PID_DEADBAND 0.3f                // R2车头保持角度死区
+#define CHASSIS_R2_HEADING_PID_INTEGRAL_LIMIT 400.0f        // R2车头保持角度环积分限幅
+#define CHASSIS_R2_ROTATE_WZ 2000.0f                        // R2小陀螺旋转角速度
 
 /* R2 navigation and cmd */
-#define NAV_R2_MAX_SPEED 10000.0f
-#define NAV_R2_SPEED_GAIN 6000.0f
-#define NAV_R2_ARRIVAL_DIST 0.15f
-#define CMD_R2_REMOTE_MOVE_SCALE 30.0f
-#define CMD_R2_REMOTE_YAW_SCALE 4.0f
-#define CMD_R2_REMOTE_DEADBAND 50
-#define CMD_R2_REMOTE_STOP_DIAL_THRESHOLD 300
+#define NAV_R2_MAX_SPEED 10000.0f             // R2导航速度上限
+#define NAV_R2_SPEED_GAIN 6000.0f             // R2导航距离到速度的比例
+#define NAV_R2_ARRIVAL_DIST 0.15f             // R2导航到点判定距离
+#define CMD_R2_REMOTE_MOVE_SCALE 30.0f        // R2遥控器平移摇杆比例
+#define CMD_R2_REMOTE_YAW_SCALE 4.0f          // R2遥控器旋转摇杆比例
+#define CMD_R2_REMOTE_DEADBAND 50             // R2遥控器摇杆死区
+#define CMD_R2_REMOTE_STOP_DIAL_THRESHOLD 300 // R2遥控器拨轮急停阈值
 
 /* R2 arm */
-#define DELTA_R2_MOTOR_NUM 2u
-#define DELTA_R2_MOTOR1_ID 1u
-#define DELTA_R2_MOTOR2_ID 2u
-#define DELTA_R2_MOTOR3_ID 3u
-#define PITCH_R2_MOTOR_ID 4u
-#define DELTA_R2_SPEED 16.0f
-#define DELTA_R2_POSITION_THRESHOLD 0.15f
-#define MIT_DELTA_R2_HIT_KP 300.0f
-#define MIT_DELTA_R2_HIT_KD 3.0f
-#define MIT_DELTA_R2_HIT_TORQ 5.0f
-#define MIT_DELTA_R2_GET_KP 200.0f
-#define MIT_DELTA_R2_GET_KD 3.0f
-#define MIT_DELTA_R2_GET_TORQ 3.0f
-#define MIT_DELTA_R2_SLOW_KP 50.0f
-#define MIT_DELTA_R2_SLOW_KD 3.0f
-#define MIT_DELTA_R2_SLOW_TORQ 0.0f
-#define MIT_PITCH_R2_HIT_KP 250.0f
-#define MIT_PITCH_R2_HIT_KD 2.0f
-#define MIT_PITCH_R2_HIT_TORQ 8.0f
-#define MIT_PITCH_R2_GET_KP 100.0f
-#define MIT_PITCH_R2_GET_KD 1.0f
-#define MIT_PITCH_R2_GET_TORQ 2.0f
-#define DELTA_R2_ORIGINAL_POS 0.0f
-#define DELTA_R2_HIT_1_POS 0.0f
-#define DELTA_R2_BACK_POS 0.0f
-#define DELTA_R2_TEST_DOWN_POS -0.8f
-#define DELTA_R2_TEST_BACK_POS -0.4f
-#define DELTA_R2_TEST_TRIGGER_POS -0.18f
+#define DELTA_R2_MOTOR_NUM 2u             // R2击球机构电机数量
+#define DELTA_R2_MOTOR1_ID 1u             // R2击球电机1 CAN ID
+#define DELTA_R2_MOTOR2_ID 2u             // R2击球电机2 CAN ID
+#define DELTA_R2_MOTOR3_ID 3u             // R2预留击球电机3 CAN ID
+#define PITCH_R2_MOTOR_ID 4u              // R2机械臂pitch电机CAN ID
+#define DELTA_R2_SPEED 16.0f              // R2击球机构目标运动速度
+#define DELTA_R2_POSITION_THRESHOLD 0.15f // R2击球机构到位误差阈值
+#define MIT_DELTA_R2_HIT_KP 300.0f        // R2击球动作delta电机MIT位置P
+#define MIT_DELTA_R2_HIT_KD 3.0f          // R2击球动作delta电机MIT速度D
+#define MIT_DELTA_R2_HIT_TORQ 5.0f        // R2击球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R2_GET_KP 200.0f        // R2接球动作delta电机MIT位置P
+#define MIT_DELTA_R2_GET_KD 3.0f          // R2接球动作delta电机MIT速度D
+#define MIT_DELTA_R2_GET_TORQ 3.0f        // R2接球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R2_SLOW_KP 50.0f        // R2慢速动作delta电机MIT位置P
+#define MIT_DELTA_R2_SLOW_KD 3.0f         // R2慢速动作delta电机MIT速度D
+#define MIT_DELTA_R2_SLOW_TORQ 0.0f       // R2慢速动作delta电机MIT前馈力矩
+#define MIT_PITCH_R2_HIT_KP 250.0f        // R2击球动作pitch电机MIT位置P
+#define MIT_PITCH_R2_HIT_KD 2.0f          // R2击球动作pitch电机MIT速度D
+#define MIT_PITCH_R2_HIT_TORQ 8.0f        // R2击球动作pitch电机MIT前馈力矩
+#define MIT_PITCH_R2_GET_KP 100.0f        // R2接球动作pitch电机MIT位置P
+#define MIT_PITCH_R2_GET_KD 1.0f          // R2接球动作pitch电机MIT速度D
+#define MIT_PITCH_R2_GET_TORQ 2.0f        // R2接球动作pitch电机MIT前馈力矩
+#define DELTA_R2_ORIGINAL_POS 0.0f        // R2击球机构初始目标位置
+#define DELTA_R2_HIT_1_POS 0.0f           // R2击球机构击球目标位置
+#define DELTA_R2_BACK_POS 0.0f            // R2击球机构回收目标位置
+#define DELTA_R2_TEST_DOWN_POS -0.8f      // R2测试下压目标位置
+#define DELTA_R2_TEST_BACK_POS -0.4f      // R2测试回收目标位置
+#define DELTA_R2_TEST_TRIGGER_POS -0.18f  // R2测试触发目标位置
 
 /* ============================== 当前车种统一宏 ============================== */
-//Jeffrey070318修改：业务代码只使用无R1/R2后缀宏，车种差异统一在此处映射。
+// Jeffrey070318修改：改回显式条件编译映射，未选车种分支会被IDE虚化，便于合并检查。
 #if defined(ROBOT_R1)
-#define ROBOT_HAS_SERVE 1
-#define ROBOT_SELECT(prefix, name) prefix##_R1_##name
+#define ROBOT_HAS_SERVE 1                                                        // 当前车是否带发球拨杆
+#define WHEEL_BASE CHASSIS_R1_WHEEL_BASE                                         // 业务代码使用的前后轮中心距
+#define TRACK_WIDTH CHASSIS_R1_TRACK_WIDTH                                       // 业务代码使用的左右轮中心距
+#define CENTER_GIMBAL_OFFSET_X CHASSIS_R1_CENTER_OFFSET_X                        // 业务代码使用的云台X偏移
+#define CENTER_GIMBAL_OFFSET_Y CHASSIS_R1_CENTER_OFFSET_Y                        // 业务代码使用的云台Y偏移
+#define RADIUS_WHEEL CHASSIS_R1_RADIUS_WHEEL                                     // 业务代码使用的轮子半径
+#define REDUCTION_RATIO_WHEEL CHASSIS_R1_REDUCTION_RATIO_WHEEL                   // 业务代码使用的轮组减速比
+#define CHASSIS_MOTOR_LF_ID CHASSIS_R1_MOTOR_LF_ID                               // 业务代码使用的左前轮ID
+#define CHASSIS_MOTOR_RF_ID CHASSIS_R1_MOTOR_RF_ID                               // 业务代码使用的右前轮ID
+#define CHASSIS_MOTOR_LB_ID CHASSIS_R1_MOTOR_LB_ID                               // 业务代码使用的左后轮ID
+#define CHASSIS_MOTOR_RB_ID CHASSIS_R1_MOTOR_RB_ID                               // 业务代码使用的右后轮ID
+#define CHASSIS_MOTOR_TYPE CHASSIS_R1_MOTOR_TYPE                                 // 业务代码使用的底盘电机型号
+#define CHASSIS_MOTOR_LF_REVERSE CHASSIS_R1_MOTOR_LF_REVERSE                     // 业务代码使用的左前轮方向
+#define CHASSIS_MOTOR_RF_REVERSE CHASSIS_R1_MOTOR_RF_REVERSE                     // 业务代码使用的右前轮方向
+#define CHASSIS_MOTOR_LB_REVERSE CHASSIS_R1_MOTOR_LB_REVERSE                     // 业务代码使用的左后轮方向
+#define CHASSIS_MOTOR_RB_REVERSE CHASSIS_R1_MOTOR_RB_REVERSE                     // 业务代码使用的右后轮方向
+#define CHASSIS_SPEED_PID_KP CHASSIS_R1_SPEED_PID_KP                             // 业务代码使用的速度环P
+#define CHASSIS_SPEED_PID_KI CHASSIS_R1_SPEED_PID_KI                             // 业务代码使用的速度环I
+#define CHASSIS_SPEED_PID_KD CHASSIS_R1_SPEED_PID_KD                             // 业务代码使用的速度环D
+#define CHASSIS_SPEED_PID_INTEGRAL_LIMIT CHASSIS_R1_SPEED_PID_INTEGRAL_LIMIT     // 业务代码使用的速度环积分限幅
+#define CHASSIS_SPEED_PID_MAX_OUT CHASSIS_R1_SPEED_PID_MAX_OUT                   // 业务代码使用的速度环输出限幅
+#define CHASSIS_CURRENT_PID_KP CHASSIS_R1_CURRENT_PID_KP                         // 业务代码使用的电流环P
+#define CHASSIS_CURRENT_PID_KI CHASSIS_R1_CURRENT_PID_KI                         // 业务代码使用的电流环I
+#define CHASSIS_CURRENT_PID_KD CHASSIS_R1_CURRENT_PID_KD                         // 业务代码使用的电流环D
+#define CHASSIS_CURRENT_PID_INTEGRAL_LIMIT CHASSIS_R1_CURRENT_PID_INTEGRAL_LIMIT // 业务代码使用的电流环积分限幅
+#define CHASSIS_CURRENT_PID_MAX_OUT CHASSIS_R1_CURRENT_PID_MAX_OUT               // 业务代码使用的电流环输出限幅
+#define CHASSIS_HEADING_PID_KP CHASSIS_R1_HEADING_PID_KP                         // 业务代码使用的车头角度环P
+#define CHASSIS_HEADING_PID_KI CHASSIS_R1_HEADING_PID_KI                         // 业务代码使用的车头角度环I
+#define CHASSIS_HEADING_PID_KD CHASSIS_R1_HEADING_PID_KD                         // 业务代码使用的车头角度环D
+#define CHASSIS_HEADING_PID_MAX_OUT CHASSIS_R1_HEADING_PID_MAX_OUT               // 业务代码使用的车头角度环输出限幅
+#define CHASSIS_HEADING_PID_DEADBAND CHASSIS_R1_HEADING_PID_DEADBAND             // 业务代码使用的车头角度死区
+#define CHASSIS_HEADING_PID_INTEGRAL_LIMIT CHASSIS_R1_HEADING_PID_INTEGRAL_LIMIT // 业务代码使用的车头角度环积分限幅
+#define CHASSIS_ROTATE_WZ CHASSIS_R1_ROTATE_WZ                                   // 业务代码使用的小陀螺角速度
+#define NAV_MAX_SPEED NAV_R1_MAX_SPEED                                           // 业务代码使用的导航速度上限
+#define NAV_SPEED_GAIN NAV_R1_SPEED_GAIN                                         // 业务代码使用的导航速度比例
+#define NAV_ARRIVAL_DIST NAV_R1_ARRIVAL_DIST                                     // 业务代码使用的导航到点距离
+#define CMD_REMOTE_MOVE_SCALE CMD_R1_REMOTE_MOVE_SCALE                           // 业务代码使用的遥控平移比例
+#define CMD_REMOTE_YAW_SCALE CMD_R1_REMOTE_YAW_SCALE                             // 业务代码使用的遥控旋转比例
+#define CMD_REMOTE_DEADBAND CMD_R1_REMOTE_DEADBAND                               // 业务代码使用的遥控摇杆死区
+#define CMD_REMOTE_STOP_DIAL_THRESHOLD CMD_R1_REMOTE_STOP_DIAL_THRESHOLD         // 业务代码使用的拨轮急停阈值
+#define DELTA_MOTOR_NUM DELTA_R1_MOTOR_NUM                                       // 业务代码使用的击球电机数量
+#define DELTA_MOTOR1_ID DELTA_R1_MOTOR1_ID                                       // 业务代码使用的击球电机1 ID
+#define DELTA_MOTOR2_ID DELTA_R1_MOTOR2_ID                                       // 业务代码使用的击球电机2 ID
+#define DELTA_MOTOR3_ID DELTA_R1_MOTOR3_ID                                       // 业务代码使用的击球电机3 ID
+#define PITCH_MOTOR_ID PITCH_R1_MOTOR_ID                                         // 业务代码使用的pitch电机ID
+#define SERVE_MOTOR_ID SERVE_R1_MOTOR_ID                                         // 业务代码使用的发球拨杆电机ID
+#define DELTA_SPEED DELTA_R1_SPEED                                               // 业务代码使用的击球机构速度
+#define DELTA_POSITION_THRESHOLD DELTA_R1_POSITION_THRESHOLD                     // 业务代码使用的击球机构到位阈值
+#define SERVE_POSITION_THRESHOLD SERVE_R1_POSITION_THRESHOLD                     // 业务代码使用的发球拨杆到位阈值
+#define MIT_DELTA_HIT_KP MIT_DELTA_R1_HIT_KP                                     // 业务代码使用的delta击球P
+#define MIT_DELTA_HIT_KD MIT_DELTA_R1_HIT_KD                                     // 业务代码使用的delta击球D
+#define MIT_DELTA_HIT_TORQ MIT_DELTA_R1_HIT_TORQ                                 // 业务代码使用的delta击球前馈
+#define MIT_DELTA_GET_KP MIT_DELTA_R1_GET_KP                                     // 业务代码使用的delta接球P
+#define MIT_DELTA_GET_KD MIT_DELTA_R1_GET_KD                                     // 业务代码使用的delta接球D
+#define MIT_DELTA_GET_TORQ MIT_DELTA_R1_GET_TORQ                                 // 业务代码使用的delta接球前馈
+#define MIT_DELTA_SLOW_KP MIT_DELTA_R1_SLOW_KP                                   // 业务代码使用的delta慢速P
+#define MIT_DELTA_SLOW_KD MIT_DELTA_R1_SLOW_KD                                   // 业务代码使用的delta慢速D
+#define MIT_DELTA_SLOW_TORQ MIT_DELTA_R1_SLOW_TORQ                               // 业务代码使用的delta慢速前馈
+#define MIT_PITCH_HIT_KP MIT_PITCH_R1_HIT_KP                                     // 业务代码使用的pitch击球P
+#define MIT_PITCH_HIT_KD MIT_PITCH_R1_HIT_KD                                     // 业务代码使用的pitch击球D
+#define MIT_PITCH_HIT_TORQ MIT_PITCH_R1_HIT_TORQ                                 // 业务代码使用的pitch击球前馈
+#define MIT_PITCH_GET_KP MIT_PITCH_R1_GET_KP                                     // 业务代码使用的pitch接球P
+#define MIT_PITCH_GET_KD MIT_PITCH_R1_GET_KD                                     // 业务代码使用的pitch接球D
+#define MIT_PITCH_GET_TORQ MIT_PITCH_R1_GET_TORQ                                 // 业务代码使用的pitch接球前馈
+#define DELTA_ORIGINAL_TARGET_POS DELTA_R1_ORIGINAL_POS                          // 业务代码使用的击球机构初始位置
+#define DELTA_HIT_1_TARGET_POS DELTA_R1_HIT_1_POS                                // 业务代码使用的击球目标位置
+#define DELTA_BACK_TARGET_POS DELTA_R1_BACK_POS                                  // 业务代码使用的回收目标位置
+#define DELTA_TEST_DOWN_POS DELTA_R1_TEST_DOWN_POS                               // 业务代码使用的测试下压位置
+#define DELTA_TEST_BACK_POS DELTA_R1_TEST_BACK_POS                               // 业务代码使用的测试回收位置
+#define DELTA_TEST_TRIGGER_POS DELTA_R1_TEST_TRIGGER_POS                         // 业务代码使用的测试触发位置
 #elif defined(ROBOT_R2)
-#define ROBOT_HAS_SERVE 0
-#define ROBOT_SELECT(prefix, name) prefix##_R2_##name
+#define ROBOT_HAS_SERVE 0                                                        // 当前车是否带发球拨杆
+#define WHEEL_BASE CHASSIS_R2_WHEEL_BASE                                         // 业务代码使用的前后轮中心距
+#define TRACK_WIDTH CHASSIS_R2_TRACK_WIDTH                                       // 业务代码使用的左右轮中心距
+#define CENTER_GIMBAL_OFFSET_X CHASSIS_R2_CENTER_OFFSET_X                        // 业务代码使用的云台X偏移
+#define CENTER_GIMBAL_OFFSET_Y CHASSIS_R2_CENTER_OFFSET_Y                        // 业务代码使用的云台Y偏移
+#define RADIUS_WHEEL CHASSIS_R2_RADIUS_WHEEL                                     // 业务代码使用的轮子半径
+#define REDUCTION_RATIO_WHEEL CHASSIS_R2_REDUCTION_RATIO_WHEEL                   // 业务代码使用的轮组减速比
+#define CHASSIS_MOTOR_LF_ID CHASSIS_R2_MOTOR_LF_ID                               // 业务代码使用的左前轮ID
+#define CHASSIS_MOTOR_RF_ID CHASSIS_R2_MOTOR_RF_ID                               // 业务代码使用的右前轮ID
+#define CHASSIS_MOTOR_LB_ID CHASSIS_R2_MOTOR_LB_ID                               // 业务代码使用的左后轮ID
+#define CHASSIS_MOTOR_RB_ID CHASSIS_R2_MOTOR_RB_ID                               // 业务代码使用的右后轮ID
+#define CHASSIS_MOTOR_TYPE CHASSIS_R2_MOTOR_TYPE                                 // 业务代码使用的底盘电机型号
+#define CHASSIS_MOTOR_LF_REVERSE CHASSIS_R2_MOTOR_LF_REVERSE                     // 业务代码使用的左前轮方向
+#define CHASSIS_MOTOR_RF_REVERSE CHASSIS_R2_MOTOR_RF_REVERSE                     // 业务代码使用的右前轮方向
+#define CHASSIS_MOTOR_LB_REVERSE CHASSIS_R2_MOTOR_LB_REVERSE                     // 业务代码使用的左后轮方向
+#define CHASSIS_MOTOR_RB_REVERSE CHASSIS_R2_MOTOR_RB_REVERSE                     // 业务代码使用的右后轮方向
+#define CHASSIS_SPEED_PID_KP CHASSIS_R2_SPEED_PID_KP                             // 业务代码使用的速度环P
+#define CHASSIS_SPEED_PID_KI CHASSIS_R2_SPEED_PID_KI                             // 业务代码使用的速度环I
+#define CHASSIS_SPEED_PID_KD CHASSIS_R2_SPEED_PID_KD                             // 业务代码使用的速度环D
+#define CHASSIS_SPEED_PID_INTEGRAL_LIMIT CHASSIS_R2_SPEED_PID_INTEGRAL_LIMIT     // 业务代码使用的速度环积分限幅
+#define CHASSIS_SPEED_PID_MAX_OUT CHASSIS_R2_SPEED_PID_MAX_OUT                   // 业务代码使用的速度环输出限幅
+#define CHASSIS_CURRENT_PID_KP CHASSIS_R2_CURRENT_PID_KP                         // 业务代码使用的电流环P
+#define CHASSIS_CURRENT_PID_KI CHASSIS_R2_CURRENT_PID_KI                         // 业务代码使用的电流环I
+#define CHASSIS_CURRENT_PID_KD CHASSIS_R2_CURRENT_PID_KD                         // 业务代码使用的电流环D
+#define CHASSIS_CURRENT_PID_INTEGRAL_LIMIT CHASSIS_R2_CURRENT_PID_INTEGRAL_LIMIT // 业务代码使用的电流环积分限幅
+#define CHASSIS_CURRENT_PID_MAX_OUT CHASSIS_R2_CURRENT_PID_MAX_OUT               // 业务代码使用的电流环输出限幅
+#define CHASSIS_HEADING_PID_KP CHASSIS_R2_HEADING_PID_KP                         // 业务代码使用的车头角度环P
+#define CHASSIS_HEADING_PID_KI CHASSIS_R2_HEADING_PID_KI                         // 业务代码使用的车头角度环I
+#define CHASSIS_HEADING_PID_KD CHASSIS_R2_HEADING_PID_KD                         // 业务代码使用的车头角度环D
+#define CHASSIS_HEADING_PID_MAX_OUT CHASSIS_R2_HEADING_PID_MAX_OUT               // 业务代码使用的车头角度环输出限幅
+#define CHASSIS_HEADING_PID_DEADBAND CHASSIS_R2_HEADING_PID_DEADBAND             // 业务代码使用的车头角度死区
+#define CHASSIS_HEADING_PID_INTEGRAL_LIMIT CHASSIS_R2_HEADING_PID_INTEGRAL_LIMIT // 业务代码使用的车头角度环积分限幅
+#define CHASSIS_ROTATE_WZ CHASSIS_R2_ROTATE_WZ                                   // 业务代码使用的小陀螺角速度
+#define NAV_MAX_SPEED NAV_R2_MAX_SPEED                                           // 业务代码使用的导航速度上限
+#define NAV_SPEED_GAIN NAV_R2_SPEED_GAIN                                         // 业务代码使用的导航速度比例
+#define NAV_ARRIVAL_DIST NAV_R2_ARRIVAL_DIST                                     // 业务代码使用的导航到点距离
+#define CMD_REMOTE_MOVE_SCALE CMD_R2_REMOTE_MOVE_SCALE                           // 业务代码使用的遥控平移比例
+#define CMD_REMOTE_YAW_SCALE CMD_R2_REMOTE_YAW_SCALE                             // 业务代码使用的遥控旋转比例
+#define CMD_REMOTE_DEADBAND CMD_R2_REMOTE_DEADBAND                               // 业务代码使用的遥控摇杆死区
+#define CMD_REMOTE_STOP_DIAL_THRESHOLD CMD_R2_REMOTE_STOP_DIAL_THRESHOLD         // 业务代码使用的拨轮急停阈值
+#define DELTA_MOTOR_NUM DELTA_R2_MOTOR_NUM                                       // 业务代码使用的击球电机数量
+#define DELTA_MOTOR1_ID DELTA_R2_MOTOR1_ID                                       // 业务代码使用的击球电机1 ID
+#define DELTA_MOTOR2_ID DELTA_R2_MOTOR2_ID                                       // 业务代码使用的击球电机2 ID
+#define DELTA_MOTOR3_ID DELTA_R2_MOTOR3_ID                                       // 业务代码预留的击球电机3 ID
+#define PITCH_MOTOR_ID PITCH_R2_MOTOR_ID                                         // 业务代码使用的pitch电机ID
+#define DELTA_SPEED DELTA_R2_SPEED                                               // 业务代码使用的击球机构速度
+#define DELTA_POSITION_THRESHOLD DELTA_R2_POSITION_THRESHOLD                     // 业务代码使用的击球机构到位阈值
+#define MIT_DELTA_HIT_KP MIT_DELTA_R2_HIT_KP                                     // 业务代码使用的delta击球P
+#define MIT_DELTA_HIT_KD MIT_DELTA_R2_HIT_KD                                     // 业务代码使用的delta击球D
+#define MIT_DELTA_HIT_TORQ MIT_DELTA_R2_HIT_TORQ                                 // 业务代码使用的delta击球前馈
+#define MIT_DELTA_GET_KP MIT_DELTA_R2_GET_KP                                     // 业务代码使用的delta接球P
+#define MIT_DELTA_GET_KD MIT_DELTA_R2_GET_KD                                     // 业务代码使用的delta接球D
+#define MIT_DELTA_GET_TORQ MIT_DELTA_R2_GET_TORQ                                 // 业务代码使用的delta接球前馈
+#define MIT_DELTA_SLOW_KP MIT_DELTA_R2_SLOW_KP                                   // 业务代码使用的delta慢速P
+#define MIT_DELTA_SLOW_KD MIT_DELTA_R2_SLOW_KD                                   // 业务代码使用的delta慢速D
+#define MIT_DELTA_SLOW_TORQ MIT_DELTA_R2_SLOW_TORQ                               // 业务代码使用的delta慢速前馈
+#define MIT_PITCH_HIT_KP MIT_PITCH_R2_HIT_KP                                     // 业务代码使用的pitch击球P
+#define MIT_PITCH_HIT_KD MIT_PITCH_R2_HIT_KD                                     // 业务代码使用的pitch击球D
+#define MIT_PITCH_HIT_TORQ MIT_PITCH_R2_HIT_TORQ                                 // 业务代码使用的pitch击球前馈
+#define MIT_PITCH_GET_KP MIT_PITCH_R2_GET_KP                                     // 业务代码使用的pitch接球P
+#define MIT_PITCH_GET_KD MIT_PITCH_R2_GET_KD                                     // 业务代码使用的pitch接球D
+#define MIT_PITCH_GET_TORQ MIT_PITCH_R2_GET_TORQ                                 // 业务代码使用的pitch接球前馈
+#define DELTA_ORIGINAL_TARGET_POS DELTA_R2_ORIGINAL_POS                          // 业务代码使用的击球机构初始位置
+#define DELTA_HIT_1_TARGET_POS DELTA_R2_HIT_1_POS                                // 业务代码使用的击球目标位置
+#define DELTA_BACK_TARGET_POS DELTA_R2_BACK_POS                                  // 业务代码使用的回收目标位置
+#define DELTA_TEST_DOWN_POS DELTA_R2_TEST_DOWN_POS                               // 业务代码使用的测试下压位置
+#define DELTA_TEST_BACK_POS DELTA_R2_TEST_BACK_POS                               // 业务代码使用的测试回收位置
+#define DELTA_TEST_TRIGGER_POS DELTA_R2_TEST_TRIGGER_POS                         // 业务代码使用的测试触发位置
 #else
 #error Robot type undefined! Define ROBOT_R1 or ROBOT_R2 in robot_def.h.
-#endif
-
-#define WHEEL_BASE ROBOT_SELECT(CHASSIS, WHEEL_BASE)
-#define TRACK_WIDTH ROBOT_SELECT(CHASSIS, TRACK_WIDTH)
-#define CENTER_GIMBAL_OFFSET_X ROBOT_SELECT(CHASSIS, CENTER_OFFSET_X)
-#define CENTER_GIMBAL_OFFSET_Y ROBOT_SELECT(CHASSIS, CENTER_OFFSET_Y)
-#define RADIUS_WHEEL ROBOT_SELECT(CHASSIS, RADIUS_WHEEL)
-#define REDUCTION_RATIO_WHEEL ROBOT_SELECT(CHASSIS, REDUCTION_RATIO_WHEEL)
-#define CHASSIS_MOTOR_LF_ID ROBOT_SELECT(CHASSIS, MOTOR_LF_ID)
-#define CHASSIS_MOTOR_RF_ID ROBOT_SELECT(CHASSIS, MOTOR_RF_ID)
-#define CHASSIS_MOTOR_LB_ID ROBOT_SELECT(CHASSIS, MOTOR_LB_ID)
-#define CHASSIS_MOTOR_RB_ID ROBOT_SELECT(CHASSIS, MOTOR_RB_ID)
-#define CHASSIS_MOTOR_TYPE ROBOT_SELECT(CHASSIS, MOTOR_TYPE)
-#define CHASSIS_MOTOR_LF_REVERSE ROBOT_SELECT(CHASSIS, MOTOR_LF_REVERSE)
-#define CHASSIS_MOTOR_RF_REVERSE ROBOT_SELECT(CHASSIS, MOTOR_RF_REVERSE)
-#define CHASSIS_MOTOR_LB_REVERSE ROBOT_SELECT(CHASSIS, MOTOR_LB_REVERSE)
-#define CHASSIS_MOTOR_RB_REVERSE ROBOT_SELECT(CHASSIS, MOTOR_RB_REVERSE)
-#define CHASSIS_SPEED_PID_KP ROBOT_SELECT(CHASSIS, SPEED_PID_KP)
-#define CHASSIS_SPEED_PID_KI ROBOT_SELECT(CHASSIS, SPEED_PID_KI)
-#define CHASSIS_SPEED_PID_KD ROBOT_SELECT(CHASSIS, SPEED_PID_KD)
-#define CHASSIS_SPEED_PID_INTEGRAL_LIMIT ROBOT_SELECT(CHASSIS, SPEED_PID_INTEGRAL_LIMIT)
-#define CHASSIS_SPEED_PID_MAX_OUT ROBOT_SELECT(CHASSIS, SPEED_PID_MAX_OUT)
-#define CHASSIS_CURRENT_PID_KP ROBOT_SELECT(CHASSIS, CURRENT_PID_KP)
-#define CHASSIS_CURRENT_PID_KI ROBOT_SELECT(CHASSIS, CURRENT_PID_KI)
-#define CHASSIS_CURRENT_PID_KD ROBOT_SELECT(CHASSIS, CURRENT_PID_KD)
-#define CHASSIS_CURRENT_PID_INTEGRAL_LIMIT ROBOT_SELECT(CHASSIS, CURRENT_PID_INTEGRAL_LIMIT)
-#define CHASSIS_CURRENT_PID_MAX_OUT ROBOT_SELECT(CHASSIS, CURRENT_PID_MAX_OUT)
-#define CHASSIS_HEADING_PID_KP ROBOT_SELECT(CHASSIS, HEADING_PID_KP)
-#define CHASSIS_HEADING_PID_KI ROBOT_SELECT(CHASSIS, HEADING_PID_KI)
-#define CHASSIS_HEADING_PID_KD ROBOT_SELECT(CHASSIS, HEADING_PID_KD)
-#define CHASSIS_HEADING_PID_MAX_OUT ROBOT_SELECT(CHASSIS, HEADING_PID_MAX_OUT)
-#define CHASSIS_HEADING_PID_DEADBAND ROBOT_SELECT(CHASSIS, HEADING_PID_DEADBAND)
-#define CHASSIS_HEADING_PID_INTEGRAL_LIMIT ROBOT_SELECT(CHASSIS, HEADING_PID_INTEGRAL_LIMIT)
-#define CHASSIS_ROTATE_WZ ROBOT_SELECT(CHASSIS, ROTATE_WZ)
-
-#define NAV_MAX_SPEED ROBOT_SELECT(NAV, MAX_SPEED)
-#define NAV_SPEED_GAIN ROBOT_SELECT(NAV, SPEED_GAIN)
-#define NAV_ARRIVAL_DIST ROBOT_SELECT(NAV, ARRIVAL_DIST)
-
-#define CMD_REMOTE_MOVE_SCALE ROBOT_SELECT(CMD, REMOTE_MOVE_SCALE)
-#define CMD_REMOTE_YAW_SCALE ROBOT_SELECT(CMD, REMOTE_YAW_SCALE)
-#define CMD_REMOTE_DEADBAND ROBOT_SELECT(CMD, REMOTE_DEADBAND)
-#define CMD_REMOTE_STOP_DIAL_THRESHOLD ROBOT_SELECT(CMD, REMOTE_STOP_DIAL_THRESHOLD)
-
-#define DELTA_MOTOR_NUM ROBOT_SELECT(DELTA, MOTOR_NUM)
-#define DELTA_MOTOR1_ID ROBOT_SELECT(DELTA, MOTOR1_ID)
-#define DELTA_MOTOR2_ID ROBOT_SELECT(DELTA, MOTOR2_ID)
-#define DELTA_MOTOR3_ID ROBOT_SELECT(DELTA, MOTOR3_ID)
-#define PITCH_MOTOR_ID ROBOT_SELECT(PITCH, MOTOR_ID)
-#define DELTA_SPEED ROBOT_SELECT(DELTA, SPEED)
-#define DELTA_POSITION_THRESHOLD ROBOT_SELECT(DELTA, POSITION_THRESHOLD)
-#define MIT_DELTA_HIT_KP ROBOT_SELECT(MIT_DELTA, HIT_KP)
-#define MIT_DELTA_HIT_KD ROBOT_SELECT(MIT_DELTA, HIT_KD)
-#define MIT_DELTA_HIT_TORQ ROBOT_SELECT(MIT_DELTA, HIT_TORQ)
-#define MIT_DELTA_GET_KP ROBOT_SELECT(MIT_DELTA, GET_KP)
-#define MIT_DELTA_GET_KD ROBOT_SELECT(MIT_DELTA, GET_KD)
-#define MIT_DELTA_GET_TORQ ROBOT_SELECT(MIT_DELTA, GET_TORQ)
-#define MIT_DELTA_SLOW_KP ROBOT_SELECT(MIT_DELTA, SLOW_KP)
-#define MIT_DELTA_SLOW_KD ROBOT_SELECT(MIT_DELTA, SLOW_KD)
-#define MIT_DELTA_SLOW_TORQ ROBOT_SELECT(MIT_DELTA, SLOW_TORQ)
-#define MIT_PITCH_HIT_KP ROBOT_SELECT(MIT_PITCH, HIT_KP)
-#define MIT_PITCH_HIT_KD ROBOT_SELECT(MIT_PITCH, HIT_KD)
-#define MIT_PITCH_HIT_TORQ ROBOT_SELECT(MIT_PITCH, HIT_TORQ)
-#define MIT_PITCH_GET_KP ROBOT_SELECT(MIT_PITCH, GET_KP)
-#define MIT_PITCH_GET_KD ROBOT_SELECT(MIT_PITCH, GET_KD)
-#define MIT_PITCH_GET_TORQ ROBOT_SELECT(MIT_PITCH, GET_TORQ)
-#define DELTA_ORIGINAL_TARGET_POS ROBOT_SELECT(DELTA, ORIGINAL_POS)
-#define DELTA_HIT_1_TARGET_POS ROBOT_SELECT(DELTA, HIT_1_POS)
-#define DELTA_BACK_TARGET_POS ROBOT_SELECT(DELTA, BACK_POS)
-#define DELTA_TEST_DOWN_POS ROBOT_SELECT(DELTA, TEST_DOWN_POS)
-#define DELTA_TEST_BACK_POS ROBOT_SELECT(DELTA, TEST_BACK_POS)
-#define DELTA_TEST_TRIGGER_POS ROBOT_SELECT(DELTA, TEST_TRIGGER_POS)
-
-#if ROBOT_HAS_SERVE
-#define SERVE_MOTOR_ID SERVE_R1_MOTOR_ID
-#define SERVE_POSITION_THRESHOLD SERVE_R1_POSITION_THRESHOLD
 #endif
 
 #pragma pack(1) // 压缩结构体,取消字节对齐,下面的数据都可能被传输
@@ -306,15 +364,15 @@
  */
 
 /*YYP0417新增*/
-//发球杆状态枚举定义
+// 发球杆状态枚举定义
 typedef enum
 {
-    LAUNCHER_ORIGIN   = 0,  // 发球杆零位
-    LAUNCHER_HIT  = 1,   // 发球杆移动至指定位置
-    LAUNCHER_STOP   = 2    // 发球杆电机急停
+    LAUNCHER_ORIGIN = 0, // 发球杆零位
+    LAUNCHER_HIT = 1,    // 发球杆移动至指定位置
+    LAUNCHER_STOP = 2    // 发球杆电机急停
 } LauncherStatus_TypeDef;
 #if ROBOT_HAS_SERVE
-//Jeffrey070318修改：发球杆全局状态只在R1存在，R2不暴露launcher语义。
+// Jeffrey070318修改：发球杆全局状态只在R1存在，R2不暴露launcher语义。
 extern LauncherStatus_TypeDef g_launcher_status; // 发球杆状态(全局变量)
 #endif
 
@@ -325,12 +383,12 @@ typedef enum
     ROBOT_READY,
 } Robot_Status_e;
 
-//Jeffrey070318增加：从general_def.h迁入Delta/Serve状态和消息定义，统一由robot_def.h管理app层语义。
+// Jeffrey070318增加：从general_def.h迁入Delta/Serve状态和消息定义，统一由robot_def.h管理app层语义。
 typedef enum
 {
     DELTA_INIT,
     DELTA_ORIGINAL_POS,
-    DELTA_SLOW_TO_TARGET,   // 缓慢从0运动到-1.2
+    DELTA_SLOW_TO_TARGET, // 缓慢从0运动到-1.2
     DELTA_SERVE_HIT_1,
     DELTA_SERVE_BACK_1,
     DELTA_SERVE_HIT_2,
@@ -360,13 +418,13 @@ typedef enum
 typedef struct
 {
     Delta_Action_e delta_action;
-    uint8_t test_seq;       // [测试] cmd 自增计数器, 验证 cmd->delta 链路
+    uint8_t test_seq; // [测试] cmd 自增计数器, 验证 cmd->delta 链路
 } Delta_Ctrl_Cmd_s;
 
 typedef struct
 {
     uint8_t delta_feedback;
-    uint8_t test_seq;       // [测试] delta 自增计数器, 验证 delta->cmd 链路
+    uint8_t test_seq; // [测试] delta 自增计数器, 验证 delta->cmd 链路
 } Delta_Upload_Data_s;
 
 typedef enum
@@ -379,20 +437,20 @@ typedef enum
 typedef struct
 {
     Serve_State_t serve_state;
-    uint8_t test_seq;       // [测试] delta 自增计数器(透传), 验证 delta->serve 链路
+    uint8_t test_seq; // [测试] delta 自增计数器(透传), 验证 delta->serve 链路
 } Serve_Ctrl_Cmd_s;
 
 typedef struct
 {
     uint8_t serve_feedback;
-    uint8_t test_seq;       // [测试] serve 自增计数器, 验证 serve->delta 链路
+    uint8_t test_seq; // [测试] serve 自增计数器, 验证 serve->delta 链路
 } Serve_Upload_Data_s;
 
 typedef enum
 {
-    ACTION_ORIGINAL,  // 发球杆零位
-    ACTION_GO,        // 发球杆移动至指定位置
-    MOTOR_DISABLE,    // 发球杆电机急停
+    ACTION_ORIGINAL, // 发球杆零位
+    ACTION_GO,       // 发球杆移动至指定位置
+    MOTOR_DISABLE,   // 发球杆电机急停
 } RemoteStatus_TypeDef;
 
 // 应用状态
@@ -415,7 +473,7 @@ typedef enum
     CHASSIS_ROTATE,            // 小陀螺模式
     CHASSIS_NO_FOLLOW,         // 允许全向平移及底盘自由旋转（手动接发球时使用）
     CHASSIS_FOLLOW_GIMBAL_YAW, // 跟随云台yaw方向(废弃，仅保留作兼容)
-    CHASSIS_KEEP_FRONT, // 底盘叠加角度环控制，使底盘始终保持当前角度，仅允许全向平移（自动接球时使用）
+    CHASSIS_KEEP_FRONT,        // 底盘叠加角度环控制，使底盘始终保持当前角度，仅允许全向平移（自动接球时使用）
 } chassis_mode_e;
 
 // 云台模式设置
@@ -479,8 +537,6 @@ typedef struct
 
 } Chassis_Ctrl_Cmd_s;
 
-
-
 /* ----------------gimbal/shoot/chassis发布的反馈数据----------------*/
 /**
  * @brief 由cmd订阅,其他应用也可以根据需要获取.
@@ -497,11 +553,9 @@ typedef struct
     // float real_vy;
     // float real_wz;
 
-    uint8_t rest_heat;           // 剩余枪口热量
-
+    uint8_t rest_heat; // 剩余枪口热量
 
 } Chassis_Upload_Data_s;
-
 
 typedef struct
 {
