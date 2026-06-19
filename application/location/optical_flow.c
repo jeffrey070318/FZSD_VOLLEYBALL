@@ -263,6 +263,7 @@ static void OpticalFlowRxCallback()
         if (instance == NULL || instance->usart_instance == NULL)
             continue;
 
+        // Jeffrey070318增加：此处后续需要改为使用recv_len解析实际接收长度，避免IDLE半包或残留buffer影响光流帧同步。
         recv_len = instance->usart_instance->recv_buff_size;
 
         for (uint16_t j = 0; j < recv_len; j++)

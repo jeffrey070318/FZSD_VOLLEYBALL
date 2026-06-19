@@ -25,7 +25,10 @@ float temp_float1 = 0;
 float temp_float_x = 0;
 float temp_float_y = 0;
 // YYP0417添加：发球杆状态全局变量定义,初始状态设为零位,根据遥控器右侧开关的状态进行切换
+#if ROBOT_HAS_SERVE
+//Jeffrey070318修改：launcher状态只在R1编译，R2没有发球拨杆时不保留该全局语义。
 LauncherStatus_TypeDef g_launcher_status = LAUNCHER_ORIGIN;
+#endif
 
 // 私有宏,自动将编码器转换成角度值
 #define YAW_ALIGN_ANGLE (YAW_CHASSIS_ALIGN_ECD * ECD_ANGLE_COEF_DJI) // 对齐时的角度,0-360
@@ -55,6 +58,8 @@ static RC_ctrl_t *rc_data;                // 遥控器数据,初始化时返回
 static Vision_Recv_s *vision_recv_data;   // 视觉接收数据指针,初始化时返回
 static Vision_Send_s vision_send_data;    // 视觉发送数据
 
+//Jeffrey070318增加：cmd层使用中性的Delta动作缓存，R1/R2分别在小函数内映射输入来源。
+static Delta_Action_e cmd_delta_action = DELTA_READY;
 static uint8_t cmd_test_seq = 0;
 static uint8_t dbg_delta_state = 0;
 static uint8_t dbg_delta_seq = 0;
@@ -208,12 +213,12 @@ static void RemoteControlSet()
     if (switch_is_up(rc_data[TEMP].rc.switch_left))
     {
         /* 手动模式: vx/vy 来自摇杆 */
-        if (abs(rc_data[TEMP].rc.rocker_r_) > 50)
-            chassis_cmd_send.vx = 30.0f * (float)rc_data[TEMP].rc.rocker_r_;
+        if (abs(rc_data[TEMP].rc.rocker_r_) > CMD_REMOTE_DEADBAND)
+            chassis_cmd_send.vx = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r_;
         else
             chassis_cmd_send.vx = 0;
-        if (abs(rc_data[TEMP].rc.rocker_r1) > 50)
-            chassis_cmd_send.vy = 30.0f * (float)rc_data[TEMP].rc.rocker_r1;
+        if (abs(rc_data[TEMP].rc.rocker_r1) > CMD_REMOTE_DEADBAND)
+            chassis_cmd_send.vy = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r1;
         else
             chassis_cmd_send.vy = 0;
     }
@@ -231,28 +236,41 @@ static void RemoteControlSet()
     else if (switch_is_up(rc_data[TEMP].rc.switch_right))
     {
         chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW;
-        chassis_cmd_send.wz = (float)rc_data[TEMP].rc.rocker_l_ * 4;
+        chassis_cmd_send.wz = (float)rc_data[TEMP].rc.rocker_l_ * CMD_REMOTE_YAW_SCALE;
     }
+}
 
-    /* ===== 发球杆控制 ===== */
+//Jeffrey070318增加：机械臂动作输入按整车能力隔离，R1联动launcher，R2只产生Delta动作请求。
+static void RemoteControlSetArm(void)
+{
+    cmd_delta_action = DELTA_READY;
+
+#if ROBOT_HAS_SERVE
+    /* ===== R1发球杆控制 ===== */
     // YYP0417修改：根据遥控器右侧开关的状态切换发球杆状态,右侧开关[上]为零位,右侧开关[下]为打出
     if (switch_is_up(rc_data[TEMP].rc.switch_right) && g_launcher_status != LAUNCHER_STOP)
         g_launcher_status = LAUNCHER_ORIGIN;
     else if (g_launcher_status != LAUNCHER_STOP)
         g_launcher_status = LAUNCHER_HIT;
+
+    if (g_launcher_status == LAUNCHER_STOP)
+        cmd_delta_action = DELTA_STOP_ACT;
+    else if (g_launcher_status == LAUNCHER_HIT)
+        cmd_delta_action = DELTA_HIT;
+#else
+    //Jeffrey070318增加：R2没有launcher，暂沿用右开关非上位作为接球机械臂动作请求入口。
+    if (!switch_is_up(rc_data[TEMP].rc.switch_right))
+        cmd_delta_action = DELTA_HIT;
+#endif
 }
 
 static Delta_Action_e GetDeltaAction(void)
 {
-    if (robot_state == ROBOT_STOP || g_launcher_status == LAUNCHER_STOP)
+    if (robot_state == ROBOT_STOP)
     {
         return DELTA_STOP_ACT;
     }
-    if (g_launcher_status == LAUNCHER_HIT)
-    {
-        return DELTA_HIT;
-    }
-    return DELTA_READY;
+    return cmd_delta_action;
 }
 
 /**
@@ -267,7 +285,7 @@ static void MouseKeySet()
 
 /**
  * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
- *         停止的阈值'300'待修改成合适的值,或改为开关控制.
+ *         停止阈值由CMD_REMOTE_STOP_DIAL_THRESHOLD按R1/R2映射,后续可改为开关控制.
  *
  * @todo   后续修改为遥控器离线则电机停止(关闭遥控器急停),通过给遥控器模块添加daemon实现
  *
@@ -275,7 +293,7 @@ static void MouseKeySet()
 static void EmergencyHandler()
 {
     // 拨轮的向下拨超过一半进入急停模式.注意向打时下拨轮是正
-    if (rc_data[TEMP].rc.dial > 300 || robot_state == ROBOT_STOP) // 还需添加重要应用和模块离线的判断
+    if (rc_data[TEMP].rc.dial > CMD_REMOTE_STOP_DIAL_THRESHOLD || robot_state == ROBOT_STOP) // 还需添加重要应用和模块离线的判断
     {
         robot_state = ROBOT_STOP;
         // gimbal_cmd_send.gimbal_mode = GIMBAL_ZERO_FORCE;
@@ -334,6 +352,7 @@ void RobotCMDTask()
 
     // 纯遥控器
     RemoteControlSet();
+    RemoteControlSetArm();
 
     EmergencyHandler(); // 处理模块离线和遥控器急停等紧急情况
 
