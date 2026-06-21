@@ -41,6 +41,13 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+volatile uint32_t dbg_fault_hfsr = 0;
+volatile uint32_t dbg_fault_cfsr = 0;
+volatile uint32_t dbg_fault_dfsr = 0;
+volatile uint32_t dbg_fault_afsr = 0;
+volatile uint32_t dbg_fault_bfar = 0;
+volatile uint32_t dbg_fault_mmfar = 0;
+volatile uint32_t dbg_fault_handler_id = 0;
 
 /* USER CODE END PV */
 
@@ -112,6 +119,13 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
+    dbg_fault_handler_id = 1;
+    dbg_fault_hfsr = SCB->HFSR;
+    dbg_fault_cfsr = SCB->CFSR;
+    dbg_fault_dfsr = SCB->DFSR;
+    dbg_fault_afsr = SCB->AFSR;
+    dbg_fault_bfar = SCB->BFAR;
+    dbg_fault_mmfar = SCB->MMFAR;
   #ifdef DEBUG
     // Get fault status registers
     volatile unsigned int hfsr = SCB->HFSR;
@@ -120,6 +134,10 @@ void HardFault_Handler(void)
     volatile unsigned int afsr = SCB->AFSR;
     volatile unsigned int bfar = SCB->BFAR;
     volatile unsigned int mmfar = SCB->MMFAR;
+    (void)dfsr;
+    (void)afsr;
+    (void)bfar;
+    (void)mmfar;
     
     // Check which type of fault occurred
     if (hfsr & SCB_HFSR_FORCED_Msk) {
@@ -150,6 +168,9 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
+  dbg_fault_handler_id = 2;
+  dbg_fault_cfsr = SCB->CFSR;
+  dbg_fault_mmfar = SCB->MMFAR;
 
   /* USER CODE END MemoryManagement_IRQn 0 */
   while (1)
@@ -165,6 +186,9 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
+  dbg_fault_handler_id = 3;
+  dbg_fault_cfsr = SCB->CFSR;
+  dbg_fault_bfar = SCB->BFAR;
 
   /* USER CODE END BusFault_IRQn 0 */
   while (1)
@@ -180,6 +204,8 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
+  dbg_fault_handler_id = 4;
+  dbg_fault_cfsr = SCB->CFSR;
 
   /* USER CODE END UsageFault_IRQn 0 */
   while (1)

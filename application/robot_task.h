@@ -13,6 +13,7 @@
 #include "daemon.h"
 #include "dmmotor.h"
 #include "buzzer.h"
+#include "robot_def.h"
 
 #include "bsp_log.h"
 
@@ -34,15 +35,21 @@ void StartROBOTTASK(void const *argument);
  */
 void OSTaskInit()
 {
+#if R2_DEBUG_ENABLE_INS_TASK
     osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
     insTaskHandle = osThreadCreate(osThread(instask), NULL); // 由于是阻塞读取传感器,为姿态解算设置较高优先级,确保以1khz的频率执行
+#endif
     // // 后续修改为读取传感器数据准备好的中断处理,
 
+#if R2_DEBUG_ENABLE_MOTOR_TASK
     osThreadDef(motortask, StartMOTORTASK, osPriorityNormal, 0, 256);
     motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
+#endif
 
+#if R2_DEBUG_ENABLE_DAEMON_TASK
     osThreadDef(daemontask, StartDAEMONTASK, osPriorityNormal, 0, 128);
     daemonTaskHandle = osThreadCreate(osThread(daemontask), NULL);
+#endif
 
     osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
     robotTaskHandle = osThreadCreate(osThread(robottask), NULL);

@@ -27,7 +27,8 @@
  */
 typedef enum
 {
-    OPTICAL_FLOW_UPIXELS = 0, /**< 优象 UPIXELS 协议. */
+    OPTICAL_FLOW_UPIXELS_NO_TOF = 0, /**< 优象 UPIXELS 纯光流协议 (默认, 无 TOF, 如 302GS). */
+    OPTICAL_FLOW_UPIXELS = 1,        /**< 优象 UPIXELS 协议 (带 TOF). */
 } OpticalFlow_Protocol_e;
 
 /**
@@ -43,7 +44,7 @@ typedef struct
     uint16_t integration_timespan; /**< 本帧积分时间,单位 us. */
     uint16_t ground_distance;      /**< TOF 测距高度,单位 mm,0xFFFF 表示超量程. */
     uint8_t valid;                 /**< 光流置信度,0 无效,255 最可靠. */
-    uint8_t tof_confidence;        /**< TOF 测距置信度. */
+    uint8_t version;               /**< UPIXELS: tof_confidence; UPIXELS_NO_TOF: 固件版本. */
 } OpticalFlow_Upixels_Raw_s;
 #pragma pack()
 
@@ -72,11 +73,11 @@ typedef struct
     float velocity_x_global; /**< 世界系 X 方向速度,单位 m/s. */
     float velocity_y_global; /**< 世界系 Y 方向速度,单位 m/s. */
 
-    uint32_t frame_count;  /**< 通过帧校验的通信帧计数. */
-    uint32_t update_count; /**< 通过质量门限并更新定位数据的帧计数. */
+    uint32_t frame_count;     /**< 通过帧校验的通信帧计数. */
+    uint32_t update_count;    /**< 通过质量门限并更新定位数据的帧计数. */
     uint32_t bad_frame_count; /**< 质量/TOF 不达标被插值的坏帧计数. */
-    float    bad_frame_ratio;  /**< 坏帧占比 = bad_frame_count / frame_count. */
-    uint8_t updated;       /**< 新有效定位数据标志,读取后调用 OpticalFlowClearUpdated() 清除. */
+    float bad_frame_ratio;    /**< 坏帧占比 = bad_frame_count / frame_count. */
+    uint8_t updated;          /**< 新有效定位数据标志,读取后调用 OpticalFlowClearUpdated() 清除. */
 } OpticalFlow_Data_s;
 
 /** 光流模块实例前向声明. */
@@ -90,7 +91,8 @@ typedef struct
     UART_HandleTypeDef *usart_handle; /**< 光流模块连接的 UART 句柄. */
     OpticalFlow_Protocol_e protocol;  /**< 协议类型,当前使用 OPTICAL_FLOW_UPIXELS. */
 
-    float flow_scale;            /**< 角位移缩放系数,填 0 使用 OPTICAL_FLOW_DEFAULT_SCALE. */
+    float flow_scale;            /**< 角位移缩放系数(传感器 X 轴),填 0 使用 OPTICAL_FLOW_DEFAULT_SCALE. */
+    float flow_scale_y;          /**< 传感器 Y 轴独立缩放系数,填 0 等同 flow_scale. */
     uint8_t swap_xy;             /**< 安装方向修正: 1 表示交换 X/Y 轴. */
     int8_t x_direction;          /**< 安装方向修正: X 方向符号,填 0 默认 1. */
     int8_t y_direction;          /**< 安装方向修正: Y 方向符号,填 0 默认 1. */

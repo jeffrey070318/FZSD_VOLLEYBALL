@@ -322,14 +322,3 @@ void ChassisTask()
     CANCommSend(chasiss_can_comm, (void *)&chassis_feedback_data);
 #endif // CHASSIS_BOARD
 }
-
-void ChassisDirectTestTask(void)
-{
-    // Jeffrey070318增加：底盘直测绕过CMD，速度从robot_def.h的CHASSIS_DIRECT_TEST_*宏读取。
-    chassis_cmd_recv.chassis_mode = CHASSIS_DIRECT_TEST_MODE;
-    chassis_cmd_recv.vx = CHASSIS_DIRECT_TEST_VX;
-    chassis_cmd_recv.vy = CHASSIS_DIRECT_TEST_VY;
-    chassis_cmd_recv.wz = CHASSIS_DIRECT_TEST_WZ;
-    chassis_cmd_recv.offset_angle = 0.0f;
-    ChassisRunControlStep();
-}
