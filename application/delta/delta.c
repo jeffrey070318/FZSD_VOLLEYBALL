@@ -46,9 +46,15 @@ volatile float dbg_pitch_two_point_speed = PITCH_TEST_SPEED;
 
 /* [测试] delta 自增计数器, 随每次任务循环 +1 */
 static uint8_t delta_test_seq = 0;
-// Jeffrey070318临时调整：CMD链路待重写，旧cmd→delta LiveWatch变量先停用。
-// static uint8_t dbg_cmd_action = 0;
-// static uint8_t dbg_cmd_seq = 0;
+// Jeffrey070318修改：恢复cmd→delta LiveWatch变量，验证遥控器开关命令是否进入Delta状态机。
+static uint8_t dbg_cmd_action = DELTA_READY;
+static uint8_t dbg_cmd_seq = 0;
+// Jeffrey070318增加：Delta接收CMD链路LiveWatch变量，用于判断右开关动作是否到达Delta任务。
+volatile uint32_t dbg_delta_cmd_msg_cnt = 0;
+volatile uint8_t dbg_delta_recv_cmd_action = DELTA_READY;
+volatile uint8_t dbg_delta_recv_cmd_seq = 0;
+volatile float dbg_delta_recv_pitch_target_pos = 0.0f; // Jeffrey070318增加：记录Delta收到的pitch目标位置，确认CMD到Delta链路。
+volatile float dbg_delta_recv_pitch_speed = 0.0f;      // Jeffrey070318增加：记录Delta收到的pitch速度，确认位置速度模式参数。
 #if ROBOT_HAS_SERVE
 // Jeffrey070318修改：serve调试变量只在R1存在，R2无发球拨杆时不编译这些未使用变量。
 static uint8_t dbg_serve_state = 0;
@@ -126,6 +132,64 @@ static void DeltaEnableMotors(void)
     }
 }
 
+// Jeffrey070318增加：DeltaApplyCmdAction提前使用使能状态判断，这里先声明后面实现的检查函数。
+static uint8_t DeltaMotorsEnabled(void);
+
+// Jeffrey070318增加：全车急停时批量失能Delta和pitch电机，避免继续执行上一次动作命令。
+static void DeltaDisableMotors(void)
+{
+    for (uint8_t i = 0; i < DELTA_MOTOR_NUM; i++)
+    {
+        Disable_Motor_Mode(&hcan2, Delta_motor[i].para.id, Delta_motor[i].mode);
+    }
+    Disable_Motor_Mode(&hcan2, Pitch_motor.para.id, Pitch_motor.mode);
+}
+
+// Jeffrey070318增加：把cmd层的DELTA_HIT/READY/STOP动作转换成Delta状态机目标状态。
+static void DeltaApplyCmdAction(void)
+{
+    static Delta_Action_e last_action = DELTA_READY;
+    Delta_Action_e action = delta_cmd_recv.delta_action;
+
+    if (action == DELTA_STOP_ACT)
+    {
+        if (last_action != DELTA_STOP_ACT)
+            DeltaDisableMotors();
+        Delta_State = DELTA_STOP;
+        last_action = action;
+        return;
+    }
+
+    if (last_action == DELTA_STOP_ACT)
+    {
+        Delta_State = DELTA_INIT;
+        last_action = action;
+        return;
+    }
+
+    // Jeffrey070318增加：CMD刚启动或急停恢复后，电机未确认使能前必须先走DELTA_INIT，不能直接跳到动作状态。
+    if (!DeltaMotorsEnabled() || Pitch_motor.para.state != ENABLE_STATE)
+    {
+        Delta_State = DELTA_INIT;
+        last_action = action;
+        return;
+    }
+
+    switch (action)
+    {
+    case DELTA_HIT:
+    case DELTA_SERVE:
+        Delta_State = DELTA_SERVE_HIT_1;
+        break;
+    case DELTA_READY:
+    default:
+        Delta_State = DELTA_ORIGINAL_POS;
+        break;
+    }
+
+    last_action = action;
+}
+
 static void DeltaUpdateDebugSnapshot(void)
 {
     dbg_delta_state = (uint32_t)Delta_State;
@@ -182,12 +246,7 @@ static void DeltaTwoPointTestStep(void)
                                         .kp = MIT_DELTA_GET_KP,
                                         .kd = MIT_DELTA_GET_KD,
                                         .torq = MIT_DELTA_GET_TORQ}
-                                  : (MIT_CTRL_DATA){
-                                        .pos = DELTA_TEST_BACK_POS,
-                                        .vel = 0.0f,
-                                        .kp = MIT_DELTA_SLOW_KP,
-                                        .kd = MIT_DELTA_SLOW_KD,
-                                        .torq = MIT_DELTA_SLOW_TORQ};
+                                  : (MIT_CTRL_DATA){.pos = DELTA_TEST_BACK_POS, .vel = 0.0f, .kp = MIT_DELTA_SLOW_KP, .kd = MIT_DELTA_SLOW_KD, .torq = MIT_DELTA_SLOW_TORQ};
 
     dbg_delta_two_point_ctrl_mode = dbg_delta_two_point_phase ? 1u : 0u;
     dbg_delta_two_point_target_pos = ctrl_data.pos;
@@ -215,10 +274,33 @@ static uint8_t PitchMotorReached(float target_pos)
     return fabsf(Pitch_motor.para.pos - target_pos) < PITCH_POSITION_THRESHOLD;
 }
 
+// Jeffrey070318增加：Delta侧再次限制pitch目标，防止CMD异常值超过当前车种安全范围。
+static float PitchConstrainTarget(float target_pos)
+{
+    float min_pos = PITCH_REMOTE_BACK_POS < PITCH_REMOTE_FRONT_POS ? PITCH_REMOTE_BACK_POS : PITCH_REMOTE_FRONT_POS;
+    float max_pos = PITCH_REMOTE_BACK_POS > PITCH_REMOTE_FRONT_POS ? PITCH_REMOTE_BACK_POS : PITCH_REMOTE_FRONT_POS;
+
+    if (target_pos < min_pos)
+        return min_pos;
+    if (target_pos > max_pos)
+        return max_pos;
+    return target_pos;
+}
+
+// Jeffrey070318增加：执行CMD下发的pitch目标，未收到速度时使用robot_def.h中的默认速度。
+static void PitchApplyCmdTarget(void)
+{
+    float target_pos = PitchConstrainTarget(delta_cmd_recv.pitch_target_pos);
+    float speed = (delta_cmd_recv.pitch_speed > 0.0f) ? delta_cmd_recv.pitch_speed : PITCH_REMOTE_SPEED;
+
+    Pos_Speed_Ctrl(&hcan2, &Pitch_motor, target_pos, speed);
+}
+
 // Jeffrey070318增加：pitch位置速度模式两点直测，按robot_def.h中的安全位置和速度来回运动。
 static void PitchTwoPointTestStep(void)
 {
-    float target_pos = dbg_pitch_two_point_phase ? PITCH_TEST_FRONT_POS : PITCH_TEST_BACK_POS;
+    // float target_pos = dbg_pitch_two_point_phase ? PITCH_TEST_FRONT_POS : PITCH_TEST_BACK_POS;
+    float target_pos = PITCH_TEST_FRONT_POS;
 
     dbg_pitch_two_point_target_pos = target_pos;
     dbg_pitch_two_point_speed = PITCH_TEST_SPEED;
@@ -327,9 +409,16 @@ void DeltaTask()
     /* 接收 cmd 下发的 delta 控制命令 */
     if (SubGetMessage(delta_sub, (void *)&delta_cmd_recv))
     {
-        // /* [测试] 存入 LiveWatch 变量, 验证 cmd→delta 链路 */
-        // dbg_cmd_action = (uint8_t)delta_cmd_recv.delta_action;
-        // dbg_cmd_seq    = delta_cmd_recv.test_seq;
+        // Jeffrey070318修改：收到cmd命令后立即更新Delta状态机，右开关下=向上，上/中=回零。
+        dbg_cmd_action = (uint8_t)delta_cmd_recv.delta_action;
+        dbg_cmd_seq = delta_cmd_recv.test_seq;
+        // Jeffrey070318增加：记录Delta收到的CMD消息，排查CMD到Delta消息链路。
+        dbg_delta_cmd_msg_cnt++;
+        dbg_delta_recv_cmd_action = (uint8_t)delta_cmd_recv.delta_action;
+        dbg_delta_recv_cmd_seq = delta_cmd_recv.test_seq;
+        dbg_delta_recv_pitch_target_pos = delta_cmd_recv.pitch_target_pos;
+        dbg_delta_recv_pitch_speed = delta_cmd_recv.pitch_speed;
+        DeltaApplyCmdAction();
     }
 #if ROBOT_HAS_SERVE
     // Jeffrey070318修改：R2没有发球拨杆，不订阅serve反馈。
@@ -377,6 +466,11 @@ void DeltaTask()
             // Jeffrey070318增加：pitch调参阶段在位置速度模式下单独两点往返，Delta可保持原点不干扰。
             PitchTwoPointTestStep();
         }
+        else
+        {
+            // Jeffrey070318修改：整车遥控模式下pitch由CMD目标控制，左摇杆回中时目标就是机械零点。
+            PitchApplyCmdTarget();
+        }
         // Pos_Speed_Ctrl(&hcan2, &Pitch_motor, -0.4f, 2.0f);
 
         // if(fabs(Delta_motor[0].para.pos) < DELTA_POSITION_THRESHOLD &&
@@ -409,6 +503,8 @@ void DeltaTask()
         // MIT 模式: 击球阶段用最大 Kp 与额外前馈力矩
         // Jeffrey070318修改：击球控制按R1/R2数量批量下发，参数由车种宏选择。
         DeltaMitCtrlAll(HIT_1_DATA);
+        // Jeffrey070318增加：机械臂发出时pitch仍响应左摇杆目标，便于接球姿态联调。
+        PitchApplyCmdTarget();
 
         if (DeltaMotorsReached(HIT_1_DATA.pos))
         {
@@ -459,13 +555,7 @@ void DeltaTask()
         //     break;
 
     case DELTA_STOP:
-        osDelay(1000);
-        Count_1++;
-        if (Count_1 > 5)
-        {
-            Count_1 = 0;
-            Delta_State = GET_BALL;
-        }
+        // Jeffrey070318修改：急停状态保持失能，不再自动跳到GET_BALL，等待cmd恢复到READY/HIT后重新初始化。
         break;
 
     default:

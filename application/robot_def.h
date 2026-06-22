@@ -30,16 +30,28 @@
 #define VISION_USE_VCP // 视觉数据走USB虚拟串口
 // #define VISION_USE_UART // 视觉数据走硬件串口
 
-// Jeffrey070318临时调试：R2机械臂问题按任务逐个放开排查；先只保留RobotTask中的Delta链路。
+// Jeffrey070318增加：LCD屏幕任务为R1/R2共通调试显示，置1创建StartScreenTask，置0只编译不运行。
+#define ROBOT_ENABLE_SCREEN_TASK 0
+
+// Jeffrey070318增加：视觉相机暂未连接，置0跳过VisionInit/VisionSend，接好相机后改回1。
+#define ROBOT_ENABLE_VISION 0
+
+// Jeffrey070318增加：光流计暂未连接，置0跳过OpticalFlowInit和周期读取，接好光流后改回1。
+#define ROBOT_ENABLE_OPTICAL_FLOW 0
+
+// Jeffrey070318增加：CMD整车遥控入口开关，置1启用RobotCMDInit/RobotCMDTask，置0保留单模块直测。
+#define R2_DEBUG_ENABLE_CMD_APP 1
+
+// Jeffrey070318修改：进入遥控器整车测试阶段，CMD接管底盘和机械臂，单模块直测默认关闭。
 #define R2_DEBUG_ENABLE_INS_TASK 1                 // 1: 创建INS任务
 #define R2_DEBUG_ENABLE_MOTOR_TASK 1               // 1: 创建全局电机控制任务(DJI底盘等)
 #define R2_DEBUG_ENABLE_DAEMON_TASK 1              // 1: 创建守护/蜂鸣器任务
-#define R2_DEBUG_ENABLE_DEFAULT_TASK 0             // 1: 创建CubeMX默认任务(会初始化USB)
+#define R2_DEBUG_ENABLE_DEFAULT_TASK 0             // 1: 创建CubeMX默认任务(会初始化USB)（usb任务当前会堵死can的正常运行）
 #define R2_DEBUG_ENABLE_CHASSIS_APP 1              // 1: 初始化并运行底盘应用
 #define R2_DEBUG_ENABLE_DELTA_APP 1                // 1: 初始化并运行Delta机械臂应用
-#define R2_DEBUG_ENABLE_DELTA_TWO_POINT_TEST 1     // Jeffrey070318修改：开始调pitch时先关闭Delta两点循环，让接球关节保持原点。
+#define R2_DEBUG_ENABLE_DELTA_TWO_POINT_TEST 0     // Jeffrey070318修改：关闭Delta两点直测，上电默认回零。
 #define R2_DEBUG_DELTA_TWO_POINT_DWELL_TICKS 1500u // 两点到位后等待周期数，RobotTask约2ms/周期，1500约3s
-#define R2_DEBUG_ENABLE_PITCH_TWO_POINT_TEST 0     // Jeffrey070318增加：pitch位置速度模式两点直测开关，1为启用。
+#define R2_DEBUG_ENABLE_PITCH_TWO_POINT_TEST 0     // Jeffrey070318修改：关闭pitch两点直测，上电默认回零。
 #define R2_DEBUG_PITCH_TWO_POINT_DWELL_TICKS 1000u // Jeffrey070318增加：pitch到位后保持周期数，RobotTask约2ms/周期，1000约2s。
 
 // 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
@@ -56,6 +68,9 @@
 
 /* ============================== 公共参数 ============================== */
 /* 机器人重要参数定义,注意根据不同机器人进行修改,浮点数需要以.0或f结尾,无符号以u结尾 */
+#define VISION_MODE_COORDINATE 0 // Jeffrey070318增加：视觉target_x/y表示世界坐标，底盘按光流当前位置导航。
+#define VISION_MODE_OFFSET 1     // Jeffrey070318增加：视觉target_x/y表示画面偏移，底盘用PID追踪偏移。
+
 #define YAW_CHASSIS_ALIGN_ECD 2711  // 云台和底盘正对时的yaw编码器值
 #define YAW_ECD_GREATER_THAN_4096 0 // yaw对齐编码值是否跨过4096
 #define PITCH_HORIZON_ECD 3412      // pitch水平位置对应的编码器值
@@ -107,13 +122,31 @@
 #define CHASSIS_R1_ROTATE_WZ 2000.0f                        // R1小陀螺旋转角速度
 
 /* R1 navigation and cmd */
-#define NAV_R1_MAX_SPEED 10000.0f             // R1导航速度上限
-#define NAV_R1_SPEED_GAIN 6000.0f             // R1导航距离到速度的比例
-#define NAV_R1_ARRIVAL_DIST 0.15f             // R1导航到点判定距离
-#define CMD_R1_REMOTE_MOVE_SCALE 30.0f        // R1遥控器平移摇杆比例
-#define CMD_R1_REMOTE_YAW_SCALE 4.0f          // R1遥控器旋转摇杆比例
-#define CMD_R1_REMOTE_DEADBAND 50             // R1遥控器摇杆死区
-#define CMD_R1_REMOTE_STOP_DIAL_THRESHOLD 300 // R1遥控器拨轮急停阈值
+#define NAV_R1_MAX_SPEED 10000.0f                            // R1导航速度上限
+#define NAV_R1_SPEED_GAIN 6000.0f                            // R1导航距离到速度的比例
+#define NAV_R1_ARRIVAL_DIST 0.15f                            // R1导航到点判定距离
+#define CMD_R1_REMOTE_MOVE_SCALE 30.0f                       // R1遥控器平移摇杆比例
+#define CMD_R1_REMOTE_YAW_SCALE 4.0f                         // R1遥控器旋转摇杆比例
+#define CMD_R1_REMOTE_DEADBAND 50                            // R1遥控器摇杆死区
+#define CMD_R1_REMOTE_STOP_DIAL_THRESHOLD 300                // R1遥控器拨轮急停阈值
+#define VISION_R1_MODE VISION_MODE_COORDINATE                // Jeffrey070318增加：R1视觉模式，坐标模式/偏移模式二选一。
+#define VISION_R1_PID_X_KP 0.5f                              // Jeffrey070318增加：R1视觉偏移模式X轴PID比例系数。
+#define VISION_R1_PID_X_KI 0.01f                             // Jeffrey070318增加：R1视觉偏移模式X轴PID积分系数。
+#define VISION_R1_PID_X_KD 0.0f                              // Jeffrey070318增加：R1视觉偏移模式X轴PID微分系数。
+#define VISION_R1_PID_X_MAXOUT 10000.0f                      // Jeffrey070318增加：R1视觉偏移模式X轴速度输出限幅。
+#define VISION_R1_PID_Y_KP 0.5f                              // Jeffrey070318增加：R1视觉偏移模式Y轴PID比例系数。
+#define VISION_R1_PID_Y_KI 0.01f                             // Jeffrey070318增加：R1视觉偏移模式Y轴PID积分系数。
+#define VISION_R1_PID_Y_KD 0.0f                              // Jeffrey070318增加：R1视觉偏移模式Y轴PID微分系数。
+#define VISION_R1_PID_Y_MAXOUT 10000.0f                      // Jeffrey070318增加：R1视觉偏移模式Y轴速度输出限幅。
+#define VISION_R1_PID_DEADBAND 2.0f                          // Jeffrey070318增加：R1视觉偏移PID死区，过滤小像素误差。
+#define VISION_R1_PID_INTEGRAL_RATIO 0.3f                    // Jeffrey070318增加：R1视觉偏移PID积分限幅相对MaxOut的比例。
+#define OPTICAL_FLOW_R1_PROTOCOL OPTICAL_FLOW_UPIXELS_NO_TOF // Jeffrey070318增加：R1光流协议，学长版使用无TOF帧。
+#define OPTICAL_FLOW_R1_SCALE_X OPTICAL_FLOW_DEFAULT_SCALE   // Jeffrey070318增加：R1光流传感器X轴角位移缩放。
+#define OPTICAL_FLOW_R1_SCALE_Y 20000.0f                     // Jeffrey070318增加：R1光流传感器Y轴角位移缩放。
+#define OPTICAL_FLOW_R1_SWAP_XY 1u                           // Jeffrey070318增加：R1光流安装方向是否交换X/Y。
+#define OPTICAL_FLOW_R1_X_DIRECTION 1                        // Jeffrey070318增加：R1光流X方向符号修正。
+#define OPTICAL_FLOW_R1_Y_DIRECTION -1                       // Jeffrey070318增加：R1光流Y方向符号修正。
+#define OPTICAL_FLOW_R1_ENABLE_GLOBAL_FRAME 1u               // Jeffrey070318增加：R1光流是否启用yaw旋转到世界坐标。
 
 /* R1 arm */
 #define DELTA_R1_MOTOR_NUM 3u             // R1击球机构电机数量
@@ -144,6 +177,11 @@
 #define PITCH_R1_TEST_FRONT_POS 0.6f      // Jeffrey070318增加：R1 pitch前向安全测试位置占位值。
 #define PITCH_R1_TEST_BACK_POS -0.6f      // Jeffrey070318增加：R1 pitch背向安全测试位置占位值。
 #define PITCH_R1_TEST_SPEED 1.0f          // Jeffrey070318增加：R1 pitch位置速度模式测试速度占位值。
+#define PITCH_R1_REMOTE_ZERO_POS 0.0f     // Jeffrey070318增加：R1遥控器控制pitch时的机械零点。
+#define PITCH_R1_REMOTE_FRONT_POS PITCH_R1_TEST_FRONT_POS // Jeffrey070318增加：R1左摇杆上推对应的pitch前向目标。
+#define PITCH_R1_REMOTE_BACK_POS PITCH_R1_TEST_BACK_POS   // Jeffrey070318增加：R1左摇杆下拉对应的pitch背向目标。
+#define PITCH_R1_REMOTE_SPEED PITCH_R1_TEST_SPEED         // Jeffrey070318增加：R1遥控器控制pitch的位置速度模式速度。
+#define PITCH_R1_REMOTE_STICK_MAX 660.0f                  // Jeffrey070318增加：R1遥控器pitch摇杆满量程，用于比例映射。
 #define DELTA_R1_ORIGINAL_POS 0.0f        // R1击球机构初始目标位置
 #define DELTA_R1_HIT_1_POS 0.0f           // R1击球机构击球目标位置
 #define DELTA_R1_BACK_POS 0.0f            // R1击球机构回收目标位置
@@ -188,13 +226,31 @@
 #define CHASSIS_R2_ROTATE_WZ 2000.0f                        // R2小陀螺旋转角速度
 
 /* R2 navigation and cmd */
-#define NAV_R2_MAX_SPEED 10000.0f             // R2导航速度上限
-#define NAV_R2_SPEED_GAIN 6000.0f             // R2导航距离到速度的比例
-#define NAV_R2_ARRIVAL_DIST 0.15f             // R2导航到点判定距离
-#define CMD_R2_REMOTE_MOVE_SCALE 30.0f        // R2遥控器平移摇杆比例
-#define CMD_R2_REMOTE_YAW_SCALE 4.0f          // R2遥控器旋转摇杆比例
-#define CMD_R2_REMOTE_DEADBAND 50             // R2遥控器摇杆死区
-#define CMD_R2_REMOTE_STOP_DIAL_THRESHOLD 300 // R2遥控器拨轮急停阈值
+#define NAV_R2_MAX_SPEED 10000.0f                            // R2导航速度上限
+#define NAV_R2_SPEED_GAIN 6000.0f                            // R2导航距离到速度的比例
+#define NAV_R2_ARRIVAL_DIST 0.15f                            // R2导航到点判定距离
+#define CMD_R2_REMOTE_MOVE_SCALE 30.0f                       // R2遥控器平移摇杆比例
+#define CMD_R2_REMOTE_YAW_SCALE 4.0f                         // R2遥控器旋转摇杆比例
+#define CMD_R2_REMOTE_DEADBAND 50                            // R2遥控器摇杆死区
+#define CMD_R2_REMOTE_STOP_DIAL_THRESHOLD 300                // R2遥控器拨轮急停阈值
+#define VISION_R2_MODE VISION_MODE_COORDINATE                // Jeffrey070318增加：R2视觉模式，坐标模式/偏移模式二选一。
+#define VISION_R2_PID_X_KP 0.5f                              // Jeffrey070318增加：R2视觉偏移模式X轴PID比例系数。
+#define VISION_R2_PID_X_KI 0.01f                             // Jeffrey070318增加：R2视觉偏移模式X轴PID积分系数。
+#define VISION_R2_PID_X_KD 0.0f                              // Jeffrey070318增加：R2视觉偏移模式X轴PID微分系数。
+#define VISION_R2_PID_X_MAXOUT 10000.0f                      // Jeffrey070318增加：R2视觉偏移模式X轴速度输出限幅。
+#define VISION_R2_PID_Y_KP 0.5f                              // Jeffrey070318增加：R2视觉偏移模式Y轴PID比例系数。
+#define VISION_R2_PID_Y_KI 0.01f                             // Jeffrey070318增加：R2视觉偏移模式Y轴PID积分系数。
+#define VISION_R2_PID_Y_KD 0.0f                              // Jeffrey070318增加：R2视觉偏移模式Y轴PID微分系数。
+#define VISION_R2_PID_Y_MAXOUT 10000.0f                      // Jeffrey070318增加：R2视觉偏移模式Y轴速度输出限幅。
+#define VISION_R2_PID_DEADBAND 2.0f                          // Jeffrey070318增加：R2视觉偏移PID死区，过滤小像素误差。
+#define VISION_R2_PID_INTEGRAL_RATIO 0.3f                    // Jeffrey070318增加：R2视觉偏移PID积分限幅相对MaxOut的比例。
+#define OPTICAL_FLOW_R2_PROTOCOL OPTICAL_FLOW_UPIXELS_NO_TOF // Jeffrey070318增加：R2光流协议，学长版使用无TOF帧。
+#define OPTICAL_FLOW_R2_SCALE_X OPTICAL_FLOW_DEFAULT_SCALE   // Jeffrey070318增加：R2光流传感器X轴角位移缩放。
+#define OPTICAL_FLOW_R2_SCALE_Y 20000.0f                     // Jeffrey070318增加：R2光流传感器Y轴角位移缩放。
+#define OPTICAL_FLOW_R2_SWAP_XY 1u                           // Jeffrey070318增加：R2光流安装方向是否交换X/Y。
+#define OPTICAL_FLOW_R2_X_DIRECTION 1                        // Jeffrey070318增加：R2光流X方向符号修正。
+#define OPTICAL_FLOW_R2_Y_DIRECTION -1                       // Jeffrey070318增加：R2光流Y方向符号修正。
+#define OPTICAL_FLOW_R2_ENABLE_GLOBAL_FRAME 1u               // Jeffrey070318增加：R2光流是否启用yaw旋转到世界坐标。
 
 /* R2 arm */
 #define DELTA_R2_MOTOR_NUM 2u             // R2击球机构电机数量
@@ -225,8 +281,13 @@
 #define PITCH_R2_TEST_FRONT_POS 0.46f     // Jeffrey070318修改：R2 pitch前向测试位置临时给到实测正向限位。
 #define PITCH_R2_TEST_BACK_POS -0.74f     // Jeffrey070318修改：R2 pitch背向测试位置临时给到实测负向限位。
 #define PITCH_R2_TEST_SPEED 1.0f          // Jeffrey070318增加：R2 pitch位置速度模式测试速度。
+#define PITCH_R2_REMOTE_ZERO_POS 0.0f     // Jeffrey070318增加：R2遥控器控制pitch时的机械零点。
+#define PITCH_R2_REMOTE_FRONT_POS PITCH_R2_TEST_FRONT_POS // Jeffrey070318增加：R2左摇杆上推对应的pitch前向目标。
+#define PITCH_R2_REMOTE_BACK_POS PITCH_R2_TEST_BACK_POS   // Jeffrey070318增加：R2左摇杆下拉对应的pitch背向目标。
+#define PITCH_R2_REMOTE_SPEED PITCH_R2_TEST_SPEED         // Jeffrey070318增加：R2遥控器控制pitch的位置速度模式速度。
+#define PITCH_R2_REMOTE_STICK_MAX 660.0f                  // Jeffrey070318增加：R2遥控器pitch摇杆满量程，用于比例映射。
 #define DELTA_R2_ORIGINAL_POS 0.0f        // R2击球机构初始目标位置
-#define DELTA_R2_HIT_1_POS 0.0f           // R2击球机构击球目标位置
+#define DELTA_R2_HIT_1_POS 0.9f           // Jeffrey070318修改：R2右开关机械臂发出目标改为实测最高点位置。
 #define DELTA_R2_BACK_POS 0.0f            // R2击球机构回收目标位置
 #define DELTA_R2_TEST_DOWN_POS 0.9f       // Jeffrey070318修改：R2直测目标改为最高点位置，按实测从零点伸张约0.9rad。
 #define DELTA_R2_TEST_BACK_POS 0.0f       // Jeffrey070318修改：R2直测回收位置保持零点，便于从零点到最高点观察动作。
@@ -275,6 +336,24 @@
 #define CMD_REMOTE_YAW_SCALE CMD_R1_REMOTE_YAW_SCALE                             // 业务代码使用的遥控旋转比例
 #define CMD_REMOTE_DEADBAND CMD_R1_REMOTE_DEADBAND                               // 业务代码使用的遥控摇杆死区
 #define CMD_REMOTE_STOP_DIAL_THRESHOLD CMD_R1_REMOTE_STOP_DIAL_THRESHOLD         // 业务代码使用的拨轮急停阈值
+#define VISION_MODE VISION_R1_MODE                                               // Jeffrey070318增加：业务代码使用的视觉回传模式。
+#define VISION_PID_X_KP VISION_R1_PID_X_KP                                       // Jeffrey070318增加：业务代码使用的视觉X轴P。
+#define VISION_PID_X_KI VISION_R1_PID_X_KI                                       // Jeffrey070318增加：业务代码使用的视觉X轴I。
+#define VISION_PID_X_KD VISION_R1_PID_X_KD                                       // Jeffrey070318增加：业务代码使用的视觉X轴D。
+#define VISION_PID_X_MAXOUT VISION_R1_PID_X_MAXOUT                               // Jeffrey070318增加：业务代码使用的视觉X轴输出限幅。
+#define VISION_PID_Y_KP VISION_R1_PID_Y_KP                                       // Jeffrey070318增加：业务代码使用的视觉Y轴P。
+#define VISION_PID_Y_KI VISION_R1_PID_Y_KI                                       // Jeffrey070318增加：业务代码使用的视觉Y轴I。
+#define VISION_PID_Y_KD VISION_R1_PID_Y_KD                                       // Jeffrey070318增加：业务代码使用的视觉Y轴D。
+#define VISION_PID_Y_MAXOUT VISION_R1_PID_Y_MAXOUT                               // Jeffrey070318增加：业务代码使用的视觉Y轴输出限幅。
+#define VISION_PID_DEADBAND VISION_R1_PID_DEADBAND                               // Jeffrey070318增加：业务代码使用的视觉PID死区。
+#define VISION_PID_INTEGRAL_RATIO VISION_R1_PID_INTEGRAL_RATIO                   // Jeffrey070318增加：业务代码使用的视觉PID积分限幅比例。
+#define OPTICAL_FLOW_PROTOCOL OPTICAL_FLOW_R1_PROTOCOL                           // Jeffrey070318增加：业务代码使用的光流协议。
+#define OPTICAL_FLOW_SCALE_X OPTICAL_FLOW_R1_SCALE_X                             // Jeffrey070318增加：业务代码使用的光流X轴缩放。
+#define OPTICAL_FLOW_SCALE_Y OPTICAL_FLOW_R1_SCALE_Y                             // Jeffrey070318增加：业务代码使用的光流Y轴缩放。
+#define OPTICAL_FLOW_SWAP_XY OPTICAL_FLOW_R1_SWAP_XY                             // Jeffrey070318增加：业务代码使用的光流X/Y交换开关。
+#define OPTICAL_FLOW_X_DIRECTION OPTICAL_FLOW_R1_X_DIRECTION                     // Jeffrey070318增加：业务代码使用的光流X方向符号。
+#define OPTICAL_FLOW_Y_DIRECTION OPTICAL_FLOW_R1_Y_DIRECTION                     // Jeffrey070318增加：业务代码使用的光流Y方向符号。
+#define OPTICAL_FLOW_ENABLE_GLOBAL_FRAME OPTICAL_FLOW_R1_ENABLE_GLOBAL_FRAME     // Jeffrey070318增加：业务代码使用的光流世界系开关。
 #define DELTA_MOTOR_NUM DELTA_R1_MOTOR_NUM                                       // 业务代码使用的击球电机数量
 #define DELTA_MOTOR1_ID DELTA_R1_MOTOR1_ID                                       // 业务代码使用的击球电机1 ID
 #define DELTA_MOTOR2_ID DELTA_R1_MOTOR2_ID                                       // 业务代码使用的击球电机2 ID
@@ -303,6 +382,11 @@
 #define PITCH_TEST_FRONT_POS PITCH_R1_TEST_FRONT_POS                             // Jeffrey070318增加：业务代码使用的pitch前向测试位置
 #define PITCH_TEST_BACK_POS PITCH_R1_TEST_BACK_POS                               // Jeffrey070318增加：业务代码使用的pitch背向测试位置
 #define PITCH_TEST_SPEED PITCH_R1_TEST_SPEED                                     // Jeffrey070318增加：业务代码使用的pitch测试速度
+#define PITCH_REMOTE_ZERO_POS PITCH_R1_REMOTE_ZERO_POS                           // Jeffrey070318增加：业务代码使用的pitch遥控零点目标
+#define PITCH_REMOTE_FRONT_POS PITCH_R1_REMOTE_FRONT_POS                         // Jeffrey070318增加：业务代码使用的pitch遥控前向目标
+#define PITCH_REMOTE_BACK_POS PITCH_R1_REMOTE_BACK_POS                           // Jeffrey070318增加：业务代码使用的pitch遥控背向目标
+#define PITCH_REMOTE_SPEED PITCH_R1_REMOTE_SPEED                                 // Jeffrey070318增加：业务代码使用的pitch遥控速度
+#define PITCH_REMOTE_STICK_MAX PITCH_R1_REMOTE_STICK_MAX                         // Jeffrey070318增加：业务代码使用的pitch摇杆满量程
 #define DELTA_ORIGINAL_TARGET_POS DELTA_R1_ORIGINAL_POS                          // 业务代码使用的击球机构初始位置
 #define DELTA_HIT_1_TARGET_POS DELTA_R1_HIT_1_POS                                // 业务代码使用的击球目标位置
 #define DELTA_BACK_TARGET_POS DELTA_R1_BACK_POS                                  // 业务代码使用的回收目标位置
@@ -350,6 +434,24 @@
 #define CMD_REMOTE_YAW_SCALE CMD_R2_REMOTE_YAW_SCALE                             // 业务代码使用的遥控旋转比例
 #define CMD_REMOTE_DEADBAND CMD_R2_REMOTE_DEADBAND                               // 业务代码使用的遥控摇杆死区
 #define CMD_REMOTE_STOP_DIAL_THRESHOLD CMD_R2_REMOTE_STOP_DIAL_THRESHOLD         // 业务代码使用的拨轮急停阈值
+#define VISION_MODE VISION_R2_MODE                                               // Jeffrey070318增加：业务代码使用的视觉回传模式。
+#define VISION_PID_X_KP VISION_R2_PID_X_KP                                       // Jeffrey070318增加：业务代码使用的视觉X轴P。
+#define VISION_PID_X_KI VISION_R2_PID_X_KI                                       // Jeffrey070318增加：业务代码使用的视觉X轴I。
+#define VISION_PID_X_KD VISION_R2_PID_X_KD                                       // Jeffrey070318增加：业务代码使用的视觉X轴D。
+#define VISION_PID_X_MAXOUT VISION_R2_PID_X_MAXOUT                               // Jeffrey070318增加：业务代码使用的视觉X轴输出限幅。
+#define VISION_PID_Y_KP VISION_R2_PID_Y_KP                                       // Jeffrey070318增加：业务代码使用的视觉Y轴P。
+#define VISION_PID_Y_KI VISION_R2_PID_Y_KI                                       // Jeffrey070318增加：业务代码使用的视觉Y轴I。
+#define VISION_PID_Y_KD VISION_R2_PID_Y_KD                                       // Jeffrey070318增加：业务代码使用的视觉Y轴D。
+#define VISION_PID_Y_MAXOUT VISION_R2_PID_Y_MAXOUT                               // Jeffrey070318增加：业务代码使用的视觉Y轴输出限幅。
+#define VISION_PID_DEADBAND VISION_R2_PID_DEADBAND                               // Jeffrey070318增加：业务代码使用的视觉PID死区。
+#define VISION_PID_INTEGRAL_RATIO VISION_R2_PID_INTEGRAL_RATIO                   // Jeffrey070318增加：业务代码使用的视觉PID积分限幅比例。
+#define OPTICAL_FLOW_PROTOCOL OPTICAL_FLOW_R2_PROTOCOL                           // Jeffrey070318增加：业务代码使用的光流协议。
+#define OPTICAL_FLOW_SCALE_X OPTICAL_FLOW_R2_SCALE_X                             // Jeffrey070318增加：业务代码使用的光流X轴缩放。
+#define OPTICAL_FLOW_SCALE_Y OPTICAL_FLOW_R2_SCALE_Y                             // Jeffrey070318增加：业务代码使用的光流Y轴缩放。
+#define OPTICAL_FLOW_SWAP_XY OPTICAL_FLOW_R2_SWAP_XY                             // Jeffrey070318增加：业务代码使用的光流X/Y交换开关。
+#define OPTICAL_FLOW_X_DIRECTION OPTICAL_FLOW_R2_X_DIRECTION                     // Jeffrey070318增加：业务代码使用的光流X方向符号。
+#define OPTICAL_FLOW_Y_DIRECTION OPTICAL_FLOW_R2_Y_DIRECTION                     // Jeffrey070318增加：业务代码使用的光流Y方向符号。
+#define OPTICAL_FLOW_ENABLE_GLOBAL_FRAME OPTICAL_FLOW_R2_ENABLE_GLOBAL_FRAME     // Jeffrey070318增加：业务代码使用的光流世界系开关。
 #define DELTA_MOTOR_NUM DELTA_R2_MOTOR_NUM                                       // 业务代码使用的击球电机数量
 #define DELTA_MOTOR1_ID DELTA_R2_MOTOR1_ID                                       // 业务代码使用的击球电机1 ID
 #define DELTA_MOTOR2_ID DELTA_R2_MOTOR2_ID                                       // 业务代码使用的击球电机2 ID
@@ -376,6 +478,11 @@
 #define PITCH_TEST_FRONT_POS PITCH_R2_TEST_FRONT_POS                             // Jeffrey070318增加：业务代码使用的pitch前向测试位置
 #define PITCH_TEST_BACK_POS PITCH_R2_TEST_BACK_POS                               // Jeffrey070318增加：业务代码使用的pitch背向测试位置
 #define PITCH_TEST_SPEED PITCH_R2_TEST_SPEED                                     // Jeffrey070318增加：业务代码使用的pitch测试速度
+#define PITCH_REMOTE_ZERO_POS PITCH_R2_REMOTE_ZERO_POS                           // Jeffrey070318增加：业务代码使用的pitch遥控零点目标
+#define PITCH_REMOTE_FRONT_POS PITCH_R2_REMOTE_FRONT_POS                         // Jeffrey070318增加：业务代码使用的pitch遥控前向目标
+#define PITCH_REMOTE_BACK_POS PITCH_R2_REMOTE_BACK_POS                           // Jeffrey070318增加：业务代码使用的pitch遥控背向目标
+#define PITCH_REMOTE_SPEED PITCH_R2_REMOTE_SPEED                                 // Jeffrey070318增加：业务代码使用的pitch遥控速度
+#define PITCH_REMOTE_STICK_MAX PITCH_R2_REMOTE_STICK_MAX                         // Jeffrey070318增加：业务代码使用的pitch摇杆满量程
 #define DELTA_ORIGINAL_TARGET_POS DELTA_R2_ORIGINAL_POS                          // 业务代码使用的击球机构初始位置
 #define DELTA_HIT_1_TARGET_POS DELTA_R2_HIT_1_POS                                // 业务代码使用的击球目标位置
 #define DELTA_BACK_TARGET_POS DELTA_R2_BACK_POS                                  // 业务代码使用的回收目标位置
@@ -448,6 +555,8 @@ typedef enum
 typedef struct
 {
     Delta_Action_e delta_action;
+    float pitch_target_pos; // Jeffrey070318增加：CMD下发给pitch的位置目标，左摇杆上下控制。
+    float pitch_speed;      // Jeffrey070318增加：CMD下发给pitch的位置速度模式速度。
     uint8_t test_seq; // [测试] cmd 自增计数器, 验证 cmd->delta 链路
 } Delta_Ctrl_Cmd_s;
 

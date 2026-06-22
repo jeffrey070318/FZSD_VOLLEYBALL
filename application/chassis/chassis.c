@@ -56,9 +56,21 @@ static DJIMotorInstance *motor_lf, *motor_rf, *motor_lb, *motor_rb; // left righ
 static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
 static float vt_lf, vt_rf, vt_lb, vt_rb; // 底盘速度解算后的临时输出,待进行限幅
 
-static PIDInstance heading_pid;                  // 前向保持PID实例
-static PID_Init_Config_s heading_pid_config;     // PID配置(文件级存储,供模式切入时重新初始化)
-static chassis_mode_e last_chassis_mode = CHASSIS_ZERO_FORCE;  // 检测模式切换,用于PID复位
+static PIDInstance heading_pid;                               // 前向保持PID实例
+static PID_Init_Config_s heading_pid_config;                  // PID配置(文件级存储,供模式切入时重新初始化)
+static chassis_mode_e last_chassis_mode = CHASSIS_ZERO_FORCE; // 检测模式切换,用于PID复位
+
+// Jeffrey070318增加：底盘接收链路LiveWatch变量，用于判断CMD发布的底盘命令是否被chassis收到。
+volatile uint32_t dbg_chassis_task_loop_cnt = 0;
+volatile uint32_t dbg_chassis_msg_cnt = 0;
+volatile uint8_t dbg_chassis_mode = 0;
+volatile float dbg_chassis_recv_vx = 0.0f;
+volatile float dbg_chassis_recv_vy = 0.0f;
+volatile float dbg_chassis_recv_wz = 0.0f;
+volatile float dbg_chassis_vt_lf = 0.0f;
+volatile float dbg_chassis_vt_rf = 0.0f;
+volatile float dbg_chassis_vt_lb = 0.0f;
+volatile float dbg_chassis_vt_rb = 0.0f;
 
 void ChassisInit()
 {
@@ -67,22 +79,20 @@ void ChassisInit()
         .can_init_config.can_handle = &hcan1,
         .controller_param_init_config = {
             .speed_PID = {
-                //Jeffrey070318修改：底盘速度环PID使用R1/R2独立参数。
-                .Kp = CHASSIS_SPEED_PID_KP,
-                .Ki = CHASSIS_SPEED_PID_KI,
-                .Kd = CHASSIS_SPEED_PID_KD,
-                .IntegralLimit = CHASSIS_SPEED_PID_INTEGRAL_LIMIT,
+                .Kp = 10, // 4.5
+                .Ki = 0,  // 0
+                .Kd = 0,  // 0
+                .IntegralLimit = 3000,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                .MaxOut = CHASSIS_SPEED_PID_MAX_OUT,
+                .MaxOut = 12000,
             },
             .current_PID = {
-                //Jeffrey070318修改：底盘电流环PID使用R1/R2独立参数。
-                .Kp = CHASSIS_CURRENT_PID_KP,
-                .Ki = CHASSIS_CURRENT_PID_KI,
-                .Kd = CHASSIS_CURRENT_PID_KD,
-                .IntegralLimit = CHASSIS_CURRENT_PID_INTEGRAL_LIMIT,
+                .Kp = 0.5, // 0.4
+                .Ki = 0,   // 0
+                .Kd = 0,
+                .IntegralLimit = 3000,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                .MaxOut = CHASSIS_CURRENT_PID_MAX_OUT,
+                .MaxOut = 15000,
             },
         },
         .controller_setting_init_config = {
@@ -91,28 +101,26 @@ void ChassisInit()
             .outer_loop_type = SPEED_LOOP,
             .close_loop_type = SPEED_LOOP | CURRENT_LOOP,
         },
-        //Jeffrey070318修改：底盘电机类型使用R1/R2独立参数。
-        .motor_type = CHASSIS_MOTOR_TYPE,
+        .motor_type = M3508,
     };
     //  @todo: 当前还没有设置电机的正反转,仍然需要手动添加reference的正负号,需要电机module的支持,待修改.
-    //Jeffrey070318修改：底盘四轮电机ID使用R1/R2独立参数。
-    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_LF_ID;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_LF_REVERSE;
+    chassis_motor_config.can_init_config.tx_id = 1;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
     motor_lf = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_RF_ID;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_RF_REVERSE;
+    chassis_motor_config.can_init_config.tx_id = 2;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
     motor_rf = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_LB_ID;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_LB_REVERSE;
+    chassis_motor_config.can_init_config.tx_id = 4;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
     motor_lb = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_RB_ID;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_RB_REVERSE;
+    chassis_motor_config.can_init_config.tx_id = 3;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
     motor_rb = DJIMotorInit(&chassis_motor_config);
 
-//    referee_data = UITaskInit(&huart1,&ui_data); // 裁判系统初始化,会同时初始化UI
+    //    referee_data = UITaskInit(&huart1,&ui_data); // 裁判系统初始化,会同时初始化UI
 
     // SuperCap_Init_Config_s cap_conf = {
     //     .can_config = {
@@ -145,13 +153,12 @@ void ChassisInit()
 
     // 前向保持PID初始化
     heading_pid_config = (PID_Init_Config_s){
-        //Jeffrey070318修改：KEEP_FRONT角度环PID使用R1/R2独立参数。
-        .Kp = CHASSIS_HEADING_PID_KP,
-        .Ki = CHASSIS_HEADING_PID_KI,
-        .Kd = CHASSIS_HEADING_PID_KD,
-        .MaxOut = CHASSIS_HEADING_PID_MAX_OUT,
-        .DeadBand = CHASSIS_HEADING_PID_DEADBAND,
-        .IntegralLimit = CHASSIS_HEADING_PID_INTEGRAL_LIMIT,
+        .Kp = 70.0f,
+        .Ki = 1.5f,
+        .Kd = 120.0f,
+        .MaxOut = 2500.0f,
+        .DeadBand = 0.3f,
+        .IntegralLimit = 400.0f,
         .Improve = PID_Integral_Limit | PID_Derivative_On_Measurement | PID_Trapezoid_Intergral,
     };
     PIDInit(&heading_pid, &heading_pid_config);
@@ -199,9 +206,9 @@ static void MecanumCalculate()
     float vx = chassis_vy;
     float wz = chassis_cmd_recv.wz;
 
-    vt_lf =  vx + vy + ROTATION_RADIUS * wz;
+    vt_lf = vx + vy + ROTATION_RADIUS * wz;
     vt_rf = -vx + vy + ROTATION_RADIUS * wz;
-    vt_lb =  vx - vy + ROTATION_RADIUS * wz;
+    vt_lb = vx - vy + ROTATION_RADIUS * wz;
     vt_rb = -vx - vy + ROTATION_RADIUS * wz;
 }
 
@@ -234,15 +241,51 @@ static void EstimateSpeed()
     //  ...
 }
 
-// Jeffrey070318增加：底盘控制执行内核，正常模式和直测模式共用这一段输出逻辑。
-static void ChassisRunControlStep(void)
+/* 机器人底盘控制核心任务 */
+void ChassisTask()
 {
+    // Jeffrey070318增加：底盘任务循环计数，确认ChassisTask是否持续运行。
+    dbg_chassis_task_loop_cnt++;
+    // 后续增加没收到消息的处理(双板的情况)
+    // 获取新的控制信息
+#ifdef ONE_BOARD
+    if (SubGetMessage(chassis_sub, &chassis_cmd_recv))
+    {
+        // Jeffrey070318增加：记录底盘收到的CMD命令，判断消息中心链路是否正常。
+        dbg_chassis_msg_cnt++;
+        dbg_chassis_recv_vx = chassis_cmd_recv.vx;
+        dbg_chassis_recv_vy = chassis_cmd_recv.vy;
+        dbg_chassis_recv_wz = chassis_cmd_recv.wz;
+        dbg_chassis_mode = (uint8_t)chassis_cmd_recv.chassis_mode;
+    }
+#endif
+#ifdef CHASSIS_BOARD
+    chassis_cmd_recv = *(Chassis_Ctrl_Cmd_s *)CANCommGet(chasiss_can_comm);
+#endif // CHASSIS_BOARD
+
     if (chassis_cmd_recv.chassis_mode == CHASSIS_ZERO_FORCE)
     { // 如果出现重要模块离线或遥控器设置为急停,让电机停止
         DJIMotorStop(motor_lf);
         DJIMotorStop(motor_rf);
         DJIMotorStop(motor_lb);
         DJIMotorStop(motor_rb);
+        // Jeffrey070318修改：零力模式下清空四轮目标并直接返回，避免后续轮速解算再次写入速度参考。
+        vt_lf = 0.0f;
+        vt_rf = 0.0f;
+        vt_lb = 0.0f;
+        vt_rb = 0.0f;
+        dbg_chassis_vt_lf = vt_lf;
+        dbg_chassis_vt_rf = vt_rf;
+        dbg_chassis_vt_lb = vt_lb;
+        dbg_chassis_vt_rb = vt_rb;
+        EstimateSpeed();
+#ifdef ONE_BOARD
+        PubPushMessage(chassis_pub, (void *)&chassis_feedback_data);
+#endif
+#ifdef CHASSIS_BOARD
+        CANCommSend(chasiss_can_comm, (void *)&chassis_feedback_data);
+#endif // CHASSIS_BOARD
+        return;
     }
     else
     { // 正常工作
@@ -257,20 +300,19 @@ static void ChassisRunControlStep(void)
     {
     case CHASSIS_NO_FOLLOW: // 底盘自由旋转全向机动，wz已在robot_cmd中设置好,不需要单独设置pid,以wz为输入直接输出速度
         // chassis_cmd_recv.wz = 0;
-        
+
         break;
     case CHASSIS_KEEP_FRONT: // 保持前向,PID控制wz,限幅±2000(100%摇杆最大)
     {
         if (last_chassis_mode != CHASSIS_KEEP_FRONT)
         {
-            PIDInit(&heading_pid, &heading_pid_config);  // 重新切入时复位积分和历史误差
+            PIDInit(&heading_pid, &heading_pid_config); // 重新切入时复位积分和历史误差
         }
         chassis_cmd_recv.wz = PIDCalculate(&heading_pid, 0.0f, chassis_cmd_recv.offset_angle);
         break;
     }
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
-        //Jeffrey070318修改：自旋速度使用R1/R2独立底盘参数。
-        chassis_cmd_recv.wz = CHASSIS_ROTATE_WZ;
+        chassis_cmd_recv.wz = 2000;
         break;
     default:
         break;
@@ -285,27 +327,17 @@ static void ChassisRunControlStep(void)
 
     // 根据控制模式进行正运动学解算,计算底盘输出
     MecanumCalculate();
+    // Jeffrey070318增加：记录底盘四轮解算输出，判断命令是否最终转成电机参考值。
+    dbg_chassis_vt_lf = vt_lf;
+    dbg_chassis_vt_rf = vt_rf;
+    dbg_chassis_vt_lb = vt_lb;
+    dbg_chassis_vt_rb = vt_rb;
 
     // 根据裁判系统的反馈数据和电容数据对输出限幅并设定闭环参考值
     LimitChassisOutput();
 
     // 根据电机的反馈速度和IMU(如果有)计算真实速度
     EstimateSpeed();
-}
-
-/* 机器人底盘控制核心任务 */
-void ChassisTask()
-{
-    // 后续增加没收到消息的处理(双板的情况)
-    // 获取新的控制信息
-#ifdef ONE_BOARD
-    SubGetMessage(chassis_sub, &chassis_cmd_recv);
-#endif
-#ifdef CHASSIS_BOARD
-    chassis_cmd_recv = *(Chassis_Ctrl_Cmd_s *)CANCommGet(chasiss_can_comm);
-#endif // CHASSIS_BOARD
-
-    ChassisRunControlStep();
 
     // // 获取裁判系统数据   建议将裁判系统与底盘分离，所以此处数据应使用消息中心发送
     // // 我方颜色id小于7是红色,大于7是蓝色,注意这里发送的是对方的颜色, 0:blue , 1:red

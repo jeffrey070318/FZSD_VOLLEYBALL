@@ -27,9 +27,7 @@
 #define KEY_PRESS_WITH_CTRL 1
 #define KEY_PRESS_WITH_SHIFT 2
 
-
-#define RC_CH_VALUE_OFFSET ((uint16_t)1024)//sbus数据中值
-
+#define RC_CH_VALUE_OFFSET ((uint16_t)1024) // sbus数据中值
 
 /* ----------------------- RC Switch Definition----------------------------- */
 #define RC_SW_UP ((uint16_t)1)   // 开关向上时的值

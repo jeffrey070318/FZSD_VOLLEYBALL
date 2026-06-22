@@ -14,6 +14,7 @@
 #include "dmmotor.h"
 #include "buzzer.h"
 #include "robot_def.h"
+#include "screen_task.h" // Jeffrey070318增加：屏幕显示任务为R1/R2共通低优先级任务。
 
 #include "bsp_log.h"
 
@@ -21,6 +22,7 @@ osThreadId insTaskHandle;
 osThreadId robotTaskHandle;
 osThreadId motorTaskHandle;
 osThreadId daemonTaskHandle;
+osThreadId screenTaskHandle; // Jeffrey070318增加：LCD导航屏幕任务句柄，方便后续调试查看任务状态。
 // osThreadId deltaTaskHandle;
 
 void StartINSTASK(void const *argument);
@@ -53,6 +55,12 @@ void OSTaskInit()
 
     osThreadDef(robottask, StartROBOTTASK, osPriorityNormal, 0, 1024);
     robotTaskHandle = osThreadCreate(osThread(robottask), NULL);
+
+// Jeffrey070318增加：屏幕任务可独立开关，避免机械臂单独调试时LCD/SPI/ADC占用干扰。
+#if ROBOT_ENABLE_SCREEN_TASK
+    osThreadDef(screen, StartScreenTask, osPriorityLow, 0, 512);
+    screenTaskHandle = osThreadCreate(osThread(screen), NULL);
+#endif
 
     // osThreadDef(deltatask, StartDELTATASK, osPriorityNormal, 0, 512);
     // deltaTaskHandle = osThreadCreate(osThread(deltatask), NULL);
