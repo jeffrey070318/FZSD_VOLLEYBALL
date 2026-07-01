@@ -30,19 +30,6 @@ volatile float dbg_delta_motor_pos[DELTA_MOTOR_NUM] = {0.0f};
 volatile uint32_t dbg_pitch_motor_state = 0;
 volatile float dbg_pitch_motor_pos = 0.0f;
 volatile uint32_t dbg_pitch_motor_enabled = 0;
-volatile uint32_t dbg_delta_two_point_enable = R2_DEBUG_ENABLE_DELTA_TWO_POINT_TEST;
-volatile uint32_t dbg_delta_two_point_phase = 1; // 1: 最高点, 0: 零点
-volatile uint32_t dbg_delta_two_point_switch_cnt = 0;
-volatile uint32_t dbg_delta_two_point_dwell_cnt = 0;
-volatile uint32_t dbg_delta_two_point_ctrl_mode = 1; // 1: 接球参数, 0: 慢速参数
-volatile float dbg_delta_two_point_target_pos = DELTA_TEST_DOWN_POS;
-// Jeffrey070318增加：R2 pitch位置速度模式两点直测Watch变量，用于调参时确认目标、相位和到位等待。
-volatile uint32_t dbg_pitch_two_point_enable = R2_DEBUG_ENABLE_PITCH_TWO_POINT_TEST;
-volatile uint32_t dbg_pitch_two_point_phase = 1; // 1: 前向测试点, 0: 背向测试点
-volatile uint32_t dbg_pitch_two_point_switch_cnt = 0;
-volatile uint32_t dbg_pitch_two_point_dwell_cnt = 0;
-volatile float dbg_pitch_two_point_target_pos = PITCH_TEST_FRONT_POS;
-volatile float dbg_pitch_two_point_speed = PITCH_TEST_SPEED;
 
 /* [测试] delta 自增计数器, 随每次任务循环 +1 */
 static uint8_t delta_test_seq = 0;
@@ -237,43 +224,6 @@ static uint8_t DeltaMotorsReached(float target_pos)
     return 1;
 }
 
-static void DeltaTwoPointTestStep(void)
-{
-    MIT_CTRL_DATA ctrl_data = dbg_delta_two_point_phase
-                                  ? (MIT_CTRL_DATA){
-                                        .pos = DELTA_TEST_DOWN_POS,
-                                        .vel = 0.0f,
-                                        .kp = MIT_DELTA_GET_KP,
-                                        .kd = MIT_DELTA_GET_KD,
-                                        .torq = MIT_DELTA_GET_TORQ}
-                                  : (MIT_CTRL_DATA){.pos = DELTA_TEST_BACK_POS, .vel = 0.0f, .kp = MIT_DELTA_SLOW_KP, .kd = MIT_DELTA_SLOW_KD, .torq = MIT_DELTA_SLOW_TORQ};
-
-    dbg_delta_two_point_ctrl_mode = dbg_delta_two_point_phase ? 1u : 0u;
-    dbg_delta_two_point_target_pos = ctrl_data.pos;
-    DeltaMitCtrlAll(ctrl_data);
-
-    if (DeltaMotorsReached(ctrl_data.pos))
-    {
-        dbg_delta_two_point_dwell_cnt++;
-        if (dbg_delta_two_point_dwell_cnt >= R2_DEBUG_DELTA_TWO_POINT_DWELL_TICKS)
-        {
-            dbg_delta_two_point_dwell_cnt = 0;
-            dbg_delta_two_point_phase = dbg_delta_two_point_phase ? 0u : 1u;
-            dbg_delta_two_point_switch_cnt++;
-        }
-    }
-    else
-    {
-        dbg_delta_two_point_dwell_cnt = 0;
-    }
-}
-
-// Jeffrey070318增加：判断pitch位置速度模式是否到达目标点，调试时用于两点自动切换。
-static uint8_t PitchMotorReached(float target_pos)
-{
-    return fabsf(Pitch_motor.para.pos - target_pos) < PITCH_POSITION_THRESHOLD;
-}
-
 // Jeffrey070318增加：Delta侧再次限制pitch目标，防止CMD异常值超过当前车种安全范围。
 static float PitchConstrainTarget(float target_pos)
 {
@@ -294,32 +244,6 @@ static void PitchApplyCmdTarget(void)
     float speed = (delta_cmd_recv.pitch_speed > 0.0f) ? delta_cmd_recv.pitch_speed : PITCH_REMOTE_SPEED;
 
     Pos_Speed_Ctrl(&hcan2, &Pitch_motor, target_pos, speed);
-}
-
-// Jeffrey070318增加：pitch位置速度模式两点直测，按robot_def.h中的安全位置和速度来回运动。
-static void PitchTwoPointTestStep(void)
-{
-    // float target_pos = dbg_pitch_two_point_phase ? PITCH_TEST_FRONT_POS : PITCH_TEST_BACK_POS;
-    float target_pos = PITCH_TEST_FRONT_POS;
-
-    dbg_pitch_two_point_target_pos = target_pos;
-    dbg_pitch_two_point_speed = PITCH_TEST_SPEED;
-    Pos_Speed_Ctrl(&hcan2, &Pitch_motor, target_pos, PITCH_TEST_SPEED);
-
-    if (PitchMotorReached(target_pos))
-    {
-        dbg_pitch_two_point_dwell_cnt++;
-        if (dbg_pitch_two_point_dwell_cnt >= R2_DEBUG_PITCH_TWO_POINT_DWELL_TICKS)
-        {
-            dbg_pitch_two_point_dwell_cnt = 0;
-            dbg_pitch_two_point_phase = dbg_pitch_two_point_phase ? 0u : 1u;
-            dbg_pitch_two_point_switch_cnt++;
-        }
-    }
-    else
-    {
-        dbg_pitch_two_point_dwell_cnt = 0;
-    }
 }
 
 // Jeffrey070318增加：保留原Delta_Motion测试入口，同时兼容R1/R2不同电机数量。
@@ -442,7 +366,7 @@ void DeltaTask()
 
         dbg_delta_motors_enabled = DeltaMotorsEnabled();
         dbg_pitch_motor_enabled = (Pitch_motor.para.state == ENABLE_STATE);
-        if (dbg_delta_motors_enabled && (!dbg_pitch_two_point_enable || dbg_pitch_motor_enabled))
+        if (dbg_delta_motors_enabled && dbg_pitch_motor_enabled)
         {
             Delta_State = DELTA_ORIGINAL_POS;
             // Serve_State = SERVE_INIT;
@@ -450,27 +374,11 @@ void DeltaTask()
         break;
 
     case DELTA_ORIGINAL_POS:
-        if (dbg_delta_two_point_enable)
-        {
-            // Jeffrey070318临时调试：CMD停用期间，Delta在零点和最高点之间循环，便于机械臂调参。
-            DeltaTwoPointTestStep();
-        }
-        else
-        {
-            // 回归零位置
-            // Jeffrey070318修改：原点控制按当前车种的Delta电机数量批量下发。
-            DeltaMitCtrlAll(DELTA_ORIGINAL_DATA);
-        }
-        if (dbg_pitch_two_point_enable)
-        {
-            // Jeffrey070318增加：pitch调参阶段在位置速度模式下单独两点往返，Delta可保持原点不干扰。
-            PitchTwoPointTestStep();
-        }
-        else
-        {
-            // Jeffrey070318修改：整车遥控模式下pitch由CMD目标控制，左摇杆回中时目标就是机械零点。
-            PitchApplyCmdTarget();
-        }
+        // 回归零位置
+        // Jeffrey070318修改：原点控制按当前车种的Delta电机数量批量下发。
+        DeltaMitCtrlAll(DELTA_ORIGINAL_DATA);
+        // Jeffrey070318修改：整车遥控模式下pitch由CMD目标控制，左摇杆回中时目标就是机械零点。
+        PitchApplyCmdTarget();
         // Pos_Speed_Ctrl(&hcan2, &Pitch_motor, -0.4f, 2.0f);
 
         // if(fabs(Delta_motor[0].para.pos) < DELTA_POSITION_THRESHOLD &&

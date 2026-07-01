@@ -37,22 +37,17 @@
 #define ROBOT_ENABLE_VISION 0
 
 // Jeffrey070318增加：光流计暂未连接，置0跳过OpticalFlowInit和周期读取，接好光流后改回1。
-#define ROBOT_ENABLE_OPTICAL_FLOW 0
+#define ROBOT_ENABLE_OPTICAL_FLOW 1
 
 // Jeffrey070318增加：CMD整车遥控入口开关，置1启用RobotCMDInit/RobotCMDTask，置0保留单模块直测。
 #define R2_DEBUG_ENABLE_CMD_APP 1
 
 // Jeffrey070318修改：进入遥控器整车测试阶段，CMD接管底盘和机械臂，单模块直测默认关闭。
-#define R2_DEBUG_ENABLE_INS_TASK 1                 // 1: 创建INS任务
-#define R2_DEBUG_ENABLE_MOTOR_TASK 1               // 1: 创建全局电机控制任务(DJI底盘等)
-#define R2_DEBUG_ENABLE_DAEMON_TASK 1              // 1: 创建守护/蜂鸣器任务
-#define R2_DEBUG_ENABLE_DEFAULT_TASK 0             // 1: 创建CubeMX默认任务(会初始化USB)（usb任务当前会堵死can的正常运行）
-#define R2_DEBUG_ENABLE_CHASSIS_APP 1              // 1: 初始化并运行底盘应用
-#define R2_DEBUG_ENABLE_DELTA_APP 1                // 1: 初始化并运行Delta机械臂应用
-#define R2_DEBUG_ENABLE_DELTA_TWO_POINT_TEST 0     // Jeffrey070318修改：关闭Delta两点直测，上电默认回零。
-#define R2_DEBUG_DELTA_TWO_POINT_DWELL_TICKS 1500u // 两点到位后等待周期数，RobotTask约2ms/周期，1500约3s
-#define R2_DEBUG_ENABLE_PITCH_TWO_POINT_TEST 0     // Jeffrey070318修改：关闭pitch两点直测，上电默认回零。
-#define R2_DEBUG_PITCH_TWO_POINT_DWELL_TICKS 1000u // Jeffrey070318增加：pitch到位后保持周期数，RobotTask约2ms/周期，1000约2s。
+#define R2_DEBUG_ENABLE_INS_TASK 1    // 1: 创建INS任务
+#define R2_DEBUG_ENABLE_MOTOR_TASK 1  // 1: 创建全局电机控制任务(DJI底盘等)
+#define R2_DEBUG_ENABLE_DAEMON_TASK 1 // 1: 创建守护/蜂鸣器任务
+#define R2_DEBUG_ENABLE_CHASSIS_APP 1 // 1: 初始化并运行底盘应用
+#define R2_DEBUG_ENABLE_DELTA_APP 1   // 1: 初始化并运行Delta机械臂应用
 
 // 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
 #if (defined(ONE_BOARD) && defined(CHASSIS_BOARD)) || \
@@ -149,45 +144,45 @@
 #define OPTICAL_FLOW_R1_ENABLE_GLOBAL_FRAME 1u               // Jeffrey070318增加：R1光流是否启用yaw旋转到世界坐标。
 
 /* R1 arm */
-#define DELTA_R1_MOTOR_NUM 3u             // R1击球机构电机数量
-#define DELTA_R1_MOTOR1_ID 1u             // R1击球电机1 CAN ID
-#define DELTA_R1_MOTOR2_ID 2u             // R1击球电机2 CAN ID
-#define DELTA_R1_MOTOR3_ID 3u             // R1击球电机3 CAN ID
-#define PITCH_R1_MOTOR_ID 4u              // R1机械臂pitch电机CAN ID
-#define SERVE_R1_MOTOR_ID 6u              // R1发球拨杆电机CAN ID
-#define DELTA_R1_SPEED 16.0f              // R1击球机构目标运动速度
-#define DELTA_R1_POSITION_THRESHOLD 0.15f // R1击球机构到位误差阈值
-#define SERVE_R1_POSITION_THRESHOLD 0.15f // R1发球拨杆到位误差阈值
-#define MIT_DELTA_R1_HIT_KP 300.0f        // R1击球动作delta电机MIT位置P
-#define MIT_DELTA_R1_HIT_KD 3.0f          // R1击球动作delta电机MIT速度D
-#define MIT_DELTA_R1_HIT_TORQ 5.0f        // R1击球动作delta电机MIT前馈力矩
-#define MIT_DELTA_R1_GET_KP 200.0f        // R1接球动作delta电机MIT位置P
-#define MIT_DELTA_R1_GET_KD 3.0f          // R1接球动作delta电机MIT速度D
-#define MIT_DELTA_R1_GET_TORQ 3.0f        // R1接球动作delta电机MIT前馈力矩
-#define MIT_DELTA_R1_SLOW_KP 50.0f        // R1慢速动作delta电机MIT位置P
-#define MIT_DELTA_R1_SLOW_KD 3.0f         // R1慢速动作delta电机MIT速度D
-#define MIT_DELTA_R1_SLOW_TORQ 0.0f       // R1慢速动作delta电机MIT前馈力矩
-#define MIT_PITCH_R1_HIT_KP 250.0f        // R1击球动作pitch电机MIT位置P
-#define MIT_PITCH_R1_HIT_KD 2.0f          // R1击球动作pitch电机MIT速度D
-#define MIT_PITCH_R1_HIT_TORQ 8.0f        // R1击球动作pitch电机MIT前馈力矩
-#define MIT_PITCH_R1_GET_KP 100.0f        // R1接球动作pitch电机MIT位置P
-#define MIT_PITCH_R1_GET_KD 1.0f          // R1接球动作pitch电机MIT速度D
-#define MIT_PITCH_R1_GET_TORQ 2.0f        // R1接球动作pitch电机MIT前馈力矩
-#define PITCH_R1_POSITION_THRESHOLD 0.03f // Jeffrey070318增加：R1 pitch位置速度模式到位误差占位值，R1实车调参时再改。
-#define PITCH_R1_TEST_FRONT_POS 0.6f      // Jeffrey070318增加：R1 pitch前向安全测试位置占位值。
-#define PITCH_R1_TEST_BACK_POS -0.6f      // Jeffrey070318增加：R1 pitch背向安全测试位置占位值。
-#define PITCH_R1_TEST_SPEED 1.0f          // Jeffrey070318增加：R1 pitch位置速度模式测试速度占位值。
-#define PITCH_R1_REMOTE_ZERO_POS 0.0f     // Jeffrey070318增加：R1遥控器控制pitch时的机械零点。
+#define DELTA_R1_MOTOR_NUM 3u                             // R1击球机构电机数量
+#define DELTA_R1_MOTOR1_ID 1u                             // R1击球电机1 CAN ID
+#define DELTA_R1_MOTOR2_ID 2u                             // R1击球电机2 CAN ID
+#define DELTA_R1_MOTOR3_ID 3u                             // R1击球电机3 CAN ID
+#define PITCH_R1_MOTOR_ID 4u                              // R1机械臂pitch电机CAN ID
+#define SERVE_R1_MOTOR_ID 6u                              // R1发球拨杆电机CAN ID
+#define DELTA_R1_SPEED 16.0f                              // R1击球机构目标运动速度
+#define DELTA_R1_POSITION_THRESHOLD 0.15f                 // R1击球机构到位误差阈值
+#define SERVE_R1_POSITION_THRESHOLD 0.15f                 // R1发球拨杆到位误差阈值
+#define MIT_DELTA_R1_HIT_KP 300.0f                        // R1击球动作delta电机MIT位置P
+#define MIT_DELTA_R1_HIT_KD 3.0f                          // R1击球动作delta电机MIT速度D
+#define MIT_DELTA_R1_HIT_TORQ 5.0f                        // R1击球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R1_GET_KP 200.0f                        // R1接球动作delta电机MIT位置P
+#define MIT_DELTA_R1_GET_KD 3.0f                          // R1接球动作delta电机MIT速度D
+#define MIT_DELTA_R1_GET_TORQ 3.0f                        // R1接球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R1_SLOW_KP 50.0f                        // R1慢速动作delta电机MIT位置P
+#define MIT_DELTA_R1_SLOW_KD 3.0f                         // R1慢速动作delta电机MIT速度D
+#define MIT_DELTA_R1_SLOW_TORQ 0.0f                       // R1慢速动作delta电机MIT前馈力矩
+#define MIT_PITCH_R1_HIT_KP 250.0f                        // R1击球动作pitch电机MIT位置P
+#define MIT_PITCH_R1_HIT_KD 2.0f                          // R1击球动作pitch电机MIT速度D
+#define MIT_PITCH_R1_HIT_TORQ 8.0f                        // R1击球动作pitch电机MIT前馈力矩
+#define MIT_PITCH_R1_GET_KP 100.0f                        // R1接球动作pitch电机MIT位置P
+#define MIT_PITCH_R1_GET_KD 1.0f                          // R1接球动作pitch电机MIT速度D
+#define MIT_PITCH_R1_GET_TORQ 2.0f                        // R1接球动作pitch电机MIT前馈力矩
+#define PITCH_R1_POSITION_THRESHOLD 0.03f                 // Jeffrey070318增加：R1 pitch位置速度模式到位误差占位值，R1实车调参时再改。
+#define PITCH_R1_TEST_FRONT_POS 0.6f                      // Jeffrey070318增加：R1 pitch前向安全测试位置占位值。
+#define PITCH_R1_TEST_BACK_POS -0.6f                      // Jeffrey070318增加：R1 pitch背向安全测试位置占位值。
+#define PITCH_R1_TEST_SPEED 1.0f                          // Jeffrey070318增加：R1 pitch位置速度模式测试速度占位值。
+#define PITCH_R1_REMOTE_ZERO_POS 0.0f                     // Jeffrey070318增加：R1遥控器控制pitch时的机械零点。
 #define PITCH_R1_REMOTE_FRONT_POS PITCH_R1_TEST_FRONT_POS // Jeffrey070318增加：R1左摇杆上推对应的pitch前向目标。
 #define PITCH_R1_REMOTE_BACK_POS PITCH_R1_TEST_BACK_POS   // Jeffrey070318增加：R1左摇杆下拉对应的pitch背向目标。
 #define PITCH_R1_REMOTE_SPEED PITCH_R1_TEST_SPEED         // Jeffrey070318增加：R1遥控器控制pitch的位置速度模式速度。
 #define PITCH_R1_REMOTE_STICK_MAX 660.0f                  // Jeffrey070318增加：R1遥控器pitch摇杆满量程，用于比例映射。
-#define DELTA_R1_ORIGINAL_POS 0.0f        // R1击球机构初始目标位置
-#define DELTA_R1_HIT_1_POS 0.0f           // R1击球机构击球目标位置
-#define DELTA_R1_BACK_POS 0.0f            // R1击球机构回收目标位置
-#define DELTA_R1_TEST_DOWN_POS -0.8f      // R1测试下压目标位置
-#define DELTA_R1_TEST_BACK_POS -0.4f      // R1测试回收目标位置
-#define DELTA_R1_TEST_TRIGGER_POS -0.18f  // R1测试触发目标位置
+#define DELTA_R1_ORIGINAL_POS 0.0f                        // R1击球机构初始目标位置
+#define DELTA_R1_HIT_1_POS 0.0f                           // R1击球机构击球目标位置
+#define DELTA_R1_BACK_POS 0.0f                            // R1击球机构回收目标位置
+#define DELTA_R1_TEST_DOWN_POS -0.8f                      // R1测试下压目标位置
+#define DELTA_R1_TEST_BACK_POS -0.4f                      // R1测试回收目标位置
+#define DELTA_R1_TEST_TRIGGER_POS -0.18f                  // R1测试触发目标位置
 
 /* ============================== R2参数 ============================== */
 // Jeffrey070318修改：R2参数独立成块，后续调参时只进入R2区域修改。
@@ -253,45 +248,45 @@
 #define OPTICAL_FLOW_R2_ENABLE_GLOBAL_FRAME 1u               // Jeffrey070318增加：R2光流是否启用yaw旋转到世界坐标。
 
 /* R2 arm */
-#define DELTA_R2_MOTOR_NUM 2u             // R2击球机构电机数量
-#define DELTA_R2_MOTOR1_ID 1u             // Jeffrey070318修改：R2击球机构电机1恢复正常CAN ID。
-#define DELTA_R2_MOTOR2_ID 2u             // Jeffrey070318修改：R2击球机构电机2恢复正常CAN ID。
-#define DELTA_R2_MOTOR3_ID 3u             // R2预留击球电机3 CAN ID
-#define PITCH_R2_MOTOR_ID 4u              // R2机械臂pitch电机CAN ID
-#define DELTA_R2_SPEED 16.0f              // R2击球机构目标运动速度
-#define DELTA_R2_POSITION_THRESHOLD 0.15f // R2击球机构到位误差阈值
-#define MIT_DELTA_R2_HIT_KP 300.0f        // R2击球动作delta电机MIT位置P
-#define MIT_DELTA_R2_HIT_KD 3.0f          // R2击球动作delta电机MIT速度D
-#define MIT_DELTA_R2_HIT_TORQ 5.0f        // R2击球动作delta电机MIT前馈力矩
-#define MIT_DELTA_R2_GET_KP 100.0f        // R2接球动作delta电机MIT位置P
-#define MIT_DELTA_R2_GET_KD 3.0f          // R2接球动作delta电机MIT速度D
-#define MIT_DELTA_R2_GET_TORQ 3.0f        // R2接球动作delta电机MIT前馈力矩
-#define MIT_DELTA_R2_SLOW_KP 10.0f        // R2慢速动作delta电机MIT位置P
-#define MIT_DELTA_R2_SLOW_KD 3.0f         // R2慢速动作delta电机MIT速度D
-#define MIT_DELTA_R2_SLOW_TORQ 0.0f       // R2慢速动作delta电机MIT前馈力矩
-#define MIT_PITCH_R2_HIT_KP 250.0f        // R2击球动作pitch电机MIT位置P
-#define MIT_PITCH_R2_HIT_KD 2.0f          // R2击球动作pitch电机MIT速度D
-#define MIT_PITCH_R2_HIT_TORQ 8.0f        // R2击球动作pitch电机MIT前馈力矩
-#define MIT_PITCH_R2_GET_KP 100.0f        // R2接球动作pitch电机MIT位置P
-#define MIT_PITCH_R2_GET_KD 1.0f          // R2接球动作pitch电机MIT速度D
-#define MIT_PITCH_R2_GET_TORQ 2.0f        // R2接球动作pitch电机MIT前馈力矩
-#define PITCH_R2_POSITION_THRESHOLD 0.03f // Jeffrey070318增加：R2 pitch位置速度模式到位误差阈值。
-#define PITCH_R2_FRONT_LIMIT_POS 0.46f    // Jeffrey070318增加：R2 pitch前向实测机械限位，调试目标不要直接取到这里。
-#define PITCH_R2_BACK_LIMIT_POS -0.74f    // Jeffrey070318增加：R2 pitch背向实测机械限位，按零点反向取负并留余量调试。
-#define PITCH_R2_TEST_FRONT_POS 0.46f     // Jeffrey070318修改：R2 pitch前向测试位置临时给到实测正向限位。
-#define PITCH_R2_TEST_BACK_POS -0.74f     // Jeffrey070318修改：R2 pitch背向测试位置临时给到实测负向限位。
-#define PITCH_R2_TEST_SPEED 1.0f          // Jeffrey070318增加：R2 pitch位置速度模式测试速度。
-#define PITCH_R2_REMOTE_ZERO_POS 0.0f     // Jeffrey070318增加：R2遥控器控制pitch时的机械零点。
+#define DELTA_R2_MOTOR_NUM 2u                             // R2击球机构电机数量
+#define DELTA_R2_MOTOR1_ID 1u                             // Jeffrey070318修改：R2击球机构电机1恢复正常CAN ID。
+#define DELTA_R2_MOTOR2_ID 2u                             // Jeffrey070318修改：R2击球机构电机2恢复正常CAN ID。
+#define DELTA_R2_MOTOR3_ID 3u                             // R2预留击球电机3 CAN ID
+#define PITCH_R2_MOTOR_ID 4u                              // R2机械臂pitch电机CAN ID
+#define DELTA_R2_SPEED 16.0f                              // R2击球机构目标运动速度
+#define DELTA_R2_POSITION_THRESHOLD 0.15f                 // R2击球机构到位误差阈值
+#define MIT_DELTA_R2_HIT_KP 300.0f                        // R2击球动作delta电机MIT位置P
+#define MIT_DELTA_R2_HIT_KD 3.0f                          // R2击球动作delta电机MIT速度D
+#define MIT_DELTA_R2_HIT_TORQ 5.0f                        // R2击球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R2_GET_KP 250.0f                        // R2接球动作delta电机MIT位置P
+#define MIT_DELTA_R2_GET_KD 3.0f                          // R2接球动作delta电机MIT速度D
+#define MIT_DELTA_R2_GET_TORQ 5.0f                        // R2接球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R2_SLOW_KP 10.0f                        // R2慢速动作delta电机MIT位置P
+#define MIT_DELTA_R2_SLOW_KD 3.0f                         // R2慢速动作delta电机MIT速度D
+#define MIT_DELTA_R2_SLOW_TORQ 0.0f                       // R2慢速动作delta电机MIT前馈力矩
+#define MIT_PITCH_R2_HIT_KP 250.0f                        // R2击球动作pitch电机MIT位置P
+#define MIT_PITCH_R2_HIT_KD 2.0f                          // R2击球动作pitch电机MIT速度D
+#define MIT_PITCH_R2_HIT_TORQ 8.0f                        // R2击球动作pitch电机MIT前馈力矩
+#define MIT_PITCH_R2_GET_KP 100.0f                        // R2接球动作pitch电机MIT位置P
+#define MIT_PITCH_R2_GET_KD 1.0f                          // R2接球动作pitch电机MIT速度D
+#define MIT_PITCH_R2_GET_TORQ 2.0f                        // R2接球动作pitch电机MIT前馈力矩
+#define PITCH_R2_POSITION_THRESHOLD 0.03f                 // Jeffrey070318增加：R2 pitch位置速度模式到位误差阈值。
+#define PITCH_R2_FRONT_LIMIT_POS 0.46f                    // Jeffrey070318增加：R2 pitch前向实测机械限位，调试目标不要直接取到这里。
+#define PITCH_R2_BACK_LIMIT_POS -0.74f                    // Jeffrey070318增加：R2 pitch背向实测机械限位，按零点反向取负并留余量调试。
+#define PITCH_R2_TEST_FRONT_POS 0.46f                     // Jeffrey070318修改：R2 pitch前向测试位置临时给到实测正向限位。
+#define PITCH_R2_TEST_BACK_POS -0.74f                     // Jeffrey070318修改：R2 pitch背向测试位置临时给到实测负向限位。
+#define PITCH_R2_TEST_SPEED 1.0f                          // Jeffrey070318增加：R2 pitch位置速度模式测试速度。
+#define PITCH_R2_REMOTE_ZERO_POS 0.0f                     // Jeffrey070318增加：R2遥控器控制pitch时的机械零点。
 #define PITCH_R2_REMOTE_FRONT_POS PITCH_R2_TEST_FRONT_POS // Jeffrey070318增加：R2左摇杆上推对应的pitch前向目标。
 #define PITCH_R2_REMOTE_BACK_POS PITCH_R2_TEST_BACK_POS   // Jeffrey070318增加：R2左摇杆下拉对应的pitch背向目标。
 #define PITCH_R2_REMOTE_SPEED PITCH_R2_TEST_SPEED         // Jeffrey070318增加：R2遥控器控制pitch的位置速度模式速度。
 #define PITCH_R2_REMOTE_STICK_MAX 660.0f                  // Jeffrey070318增加：R2遥控器pitch摇杆满量程，用于比例映射。
-#define DELTA_R2_ORIGINAL_POS 0.0f        // R2击球机构初始目标位置
-#define DELTA_R2_HIT_1_POS 0.9f           // Jeffrey070318修改：R2右开关机械臂发出目标改为实测最高点位置。
-#define DELTA_R2_BACK_POS 0.0f            // R2击球机构回收目标位置
-#define DELTA_R2_TEST_DOWN_POS 0.9f       // Jeffrey070318修改：R2直测目标改为最高点位置，按实测从零点伸张约0.9rad。
-#define DELTA_R2_TEST_BACK_POS 0.0f       // Jeffrey070318修改：R2直测回收位置保持零点，便于从零点到最高点观察动作。
-#define DELTA_R2_TEST_TRIGGER_POS 0.8f    // Jeffrey070318修改：R2直测触发阈值同步改到接近最高点，用于判断是否到达大行程位置。
+#define DELTA_R2_ORIGINAL_POS 0.0f                        // R2击球机构初始目标位置
+#define DELTA_R2_HIT_1_POS 0.70f                          // Jeffrey070318修改：R2右开关机械臂发出目标改为实测最高点位置。
+#define DELTA_R2_BACK_POS 0.0f                            // R2击球机构回收目标位置
+#define DELTA_R2_TEST_DOWN_POS 0.9f                       // Jeffrey070318修改：R2直测目标改为最高点位置，按实测从零点伸张约0.9rad。
+#define DELTA_R2_TEST_BACK_POS 0.0f                       // Jeffrey070318修改：R2直测回收位置保持零点，便于从零点到最高点观察动作。
+#define DELTA_R2_TEST_TRIGGER_POS 0.8f                    // Jeffrey070318修改：R2直测触发阈值同步改到接近最高点，用于判断是否到达大行程位置。
 
 /* ============================== 当前车种统一宏 ============================== */
 // Jeffrey070318修改：改回显式条件编译映射，未选车种分支会被IDE虚化，便于合并检查。
@@ -557,7 +552,7 @@ typedef struct
     Delta_Action_e delta_action;
     float pitch_target_pos; // Jeffrey070318增加：CMD下发给pitch的位置目标，左摇杆上下控制。
     float pitch_speed;      // Jeffrey070318增加：CMD下发给pitch的位置速度模式速度。
-    uint8_t test_seq; // [测试] cmd 自增计数器, 验证 cmd->delta 链路
+    uint8_t test_seq;       // [测试] cmd 自增计数器, 验证 cmd->delta 链路
 } Delta_Ctrl_Cmd_s;
 
 typedef struct

@@ -25,7 +25,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "robot_def.h"
 
 /* USER CODE END Includes */
 
@@ -137,10 +136,8 @@ void MX_FREERTOS_Init(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-#if R2_DEBUG_ENABLE_DEFAULT_TASK
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-#endif
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -157,7 +154,8 @@ void MX_FREERTOS_Init(void)
 void StartDefaultTask(void const *argument)
 {
   /* init code for USB_DEVICE */
-  MX_USB_DEVICE_Init();
+  // Jeffrey070318临时调整：USB初始化会影响R2机械臂/CAN调试，先注销；保留defaultTask本身用于普通空闲循环。
+  // MX_USB_DEVICE_Init();
   /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
   for (;;)

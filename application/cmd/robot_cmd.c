@@ -28,7 +28,7 @@ float temp_float_x = 0;
 float temp_float_y = 0;
 // YYP0417添加：发球杆状态全局变量定义,初始状态设为零位,根据遥控器右侧开关的状态进行切换
 #if ROBOT_HAS_SERVE
-//Jeffrey070318修改：launcher状态只在R1编译，R2没有发球拨杆时不保留该全局语义。
+// Jeffrey070318修改：launcher状态只在R1编译，R2没有发球拨杆时不保留该全局语义。
 LauncherStatus_TypeDef g_launcher_status = LAUNCHER_ORIGIN;
 #endif
 
@@ -60,10 +60,10 @@ static RC_ctrl_t *rc_data;                // 遥控器数据,初始化时返回
 static Vision_Recv_s *vision_recv_data;   // 视觉接收数据指针,初始化时返回
 #if ROBOT_ENABLE_VISION
 // Jeffrey070318增加：视觉相机启用时才保留发送缓存，未接相机时避免无用视觉链路。
-static Vision_Send_s vision_send_data;    // 视觉发送数据
+static Vision_Send_s vision_send_data; // 视觉发送数据
 #endif
 
-//Jeffrey070318增加：cmd层使用中性的Delta动作缓存，R1/R2分别在小函数内映射输入来源。
+// Jeffrey070318增加：cmd层使用中性的Delta动作缓存，R1/R2分别在小函数内映射输入来源。
 static Delta_Action_e cmd_delta_action = DELTA_READY;
 static float cmd_pitch_target_pos = PITCH_REMOTE_ZERO_POS; // Jeffrey070318增加：缓存左摇杆映射出的pitch目标位置。
 static float cmd_pitch_speed = PITCH_REMOTE_SPEED;         // Jeffrey070318增加：缓存pitch位置速度模式速度，随车种参数切换。
@@ -117,9 +117,9 @@ static PIDInstance pid_vision_y;
 
 void RobotCMDInit()
 {
-    dbg_cmd_init_done = 0; // Jeffrey070318增加：CMD初始化开始，便于判断是否卡在初始化中途。
-    rc_data = RemoteControlInit(&huart5);   // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-    dbg_cmd_rc_data_addr = (uint32_t)rc_data; // Jeffrey070318增加：记录遥控器数据指针地址，判断RemoteControlInit是否返回。
+    dbg_cmd_init_done = 0;                       // Jeffrey070318增加：CMD初始化开始，便于判断是否卡在初始化中途。
+    rc_data = RemoteControlInit(&huart5);        // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
+    dbg_cmd_rc_data_addr = (uint32_t)rc_data;    // Jeffrey070318增加：记录遥控器数据指针地址，判断RemoteControlInit是否返回。
     dbg_cmd_rc_data_is_null = (rc_data == NULL); // Jeffrey070318增加：确认CMD是否拿到遥控器数据缓存。
 #if ROBOT_ENABLE_VISION
     // Jeffrey070318修改：相机接好并打开ROBOT_ENABLE_VISION后才初始化视觉串口。
@@ -167,7 +167,7 @@ void RobotCMDInit()
 #if ROBOT_ENABLE_OPTICAL_FLOW
     {
         OpticalFlow_Init_Config_s flow_conf = {
-            .usart_handle = &huart7,
+            .usart_handle = &huart10,
             // Jeffrey070318修改：光流协议和安装方向改走robot_def.h，R1/R2可分别调参。
             .protocol = OPTICAL_FLOW_PROTOCOL,
             .flow_scale = OPTICAL_FLOW_SCALE_X,
@@ -365,7 +365,7 @@ static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
     return PITCH_REMOTE_ZERO_POS + (-ratio) * (PITCH_REMOTE_BACK_POS - PITCH_REMOTE_ZERO_POS);
 }
 
-//Jeffrey070318修改：右开关专用于机械臂，向下为机械臂向上，回拨为回零点；发球拨杆后续再分配独立开关。
+// Jeffrey070318修改：右开关专用于机械臂，向下为机械臂向上，回拨为回零点；发球拨杆后续再分配独立开关。
 static void RemoteControlSetArm(void)
 {
     cmd_pitch_target_pos = RemotePitchTargetFromJoystick(rc_data[TEMP].rc.rocker_l1);

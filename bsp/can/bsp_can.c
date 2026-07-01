@@ -326,14 +326,24 @@ FDCAN_RxHeaderTypeDef rxHeader;
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
 	uint8_t myrx_data[8];
-	if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE)
+	uint16_t DataLength = 0;
+	if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) || (RxFifo0ITs & FDCAN_IT_RX_FIFO0_FULL) || (RxFifo0ITs & FDCAN_IT_RX_FIFO0_WATERMARK))
     {
         while (HAL_FDCAN_GetRxFifoFillLevel(hfdcan, FDCAN_RX_FIFO0) > 0)
         {
             HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rxHeader, myrx_data);
+			if (((rxHeader.DataLength) & 0xF) <= 8)
+			{
+				DataLength = (rxHeader.DataLength) & 0xF;
+			}
+			else
+			{
+				DataLength = 0;
+			}
 
             if (rxHeader.IdType == FDCAN_STANDARD_ID && rxHeader.RxFrameType == FDCAN_DATA_FRAME)
             {
+				uint8_t dm_feedback_handled = 1;
 				switch (rxHeader.Identifier)
 				{
 				case DM_MOTOR_FB_ID(DELTA_MOTOR1_ID):Dm8009_Fbdata(&Delta_motor[0], myrx_data);
@@ -358,7 +368,25 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 					break;
 #endif
 				default:
+					dm_feedback_handled = 0;
 					break;
+				}
+
+				if (!dm_feedback_handled)
+				{
+					for (size_t i = 0; i < idx; ++i)
+					{
+						if (hfdcan == can_instance[i]->can_handle && rxHeader.Identifier == can_instance[i]->rx_id)
+						{
+							if (can_instance[i]->can_module_callback != NULL)
+							{
+								can_instance[i]->rx_len = DataLength;
+								memcpy(can_instance[i]->rx_buff, myrx_data, can_instance[i]->rx_len);
+								can_instance[i]->can_module_callback(can_instance[i]);
+							}
+							break;
+						}
+					}
 				}
             }
         }

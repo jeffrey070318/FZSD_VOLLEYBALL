@@ -71,6 +71,46 @@ volatile float dbg_chassis_vt_lf = 0.0f;
 volatile float dbg_chassis_vt_rf = 0.0f;
 volatile float dbg_chassis_vt_lb = 0.0f;
 volatile float dbg_chassis_vt_rb = 0.0f;
+volatile float dbg_chassis_fb_speed_lf = 0.0f;
+volatile float dbg_chassis_fb_speed_rf = 0.0f;
+volatile float dbg_chassis_fb_speed_lb = 0.0f;
+volatile float dbg_chassis_fb_speed_rb = 0.0f;
+volatile int16_t dbg_chassis_fb_current_lf = 0;
+volatile int16_t dbg_chassis_fb_current_rf = 0;
+volatile int16_t dbg_chassis_fb_current_lb = 0;
+volatile int16_t dbg_chassis_fb_current_rb = 0;
+volatile uint16_t dbg_chassis_fb_ecd_lf = 0;
+volatile uint16_t dbg_chassis_fb_ecd_rf = 0;
+volatile uint16_t dbg_chassis_fb_ecd_lb = 0;
+volatile uint16_t dbg_chassis_fb_ecd_rb = 0;
+
+static void ChassisUpdateMotorDebug()
+{
+    if (motor_lf != NULL)
+    {
+        dbg_chassis_fb_speed_lf = motor_lf->measure.speed_aps;
+        dbg_chassis_fb_current_lf = motor_lf->measure.real_current;
+        dbg_chassis_fb_ecd_lf = motor_lf->measure.ecd;
+    }
+    if (motor_rf != NULL)
+    {
+        dbg_chassis_fb_speed_rf = motor_rf->measure.speed_aps;
+        dbg_chassis_fb_current_rf = motor_rf->measure.real_current;
+        dbg_chassis_fb_ecd_rf = motor_rf->measure.ecd;
+    }
+    if (motor_lb != NULL)
+    {
+        dbg_chassis_fb_speed_lb = motor_lb->measure.speed_aps;
+        dbg_chassis_fb_current_lb = motor_lb->measure.real_current;
+        dbg_chassis_fb_ecd_lb = motor_lb->measure.ecd;
+    }
+    if (motor_rb != NULL)
+    {
+        dbg_chassis_fb_speed_rb = motor_rb->measure.speed_aps;
+        dbg_chassis_fb_current_rb = motor_rb->measure.real_current;
+        dbg_chassis_fb_ecd_rb = motor_rb->measure.ecd;
+    }
+}
 
 void ChassisInit()
 {
@@ -78,21 +118,23 @@ void ChassisInit()
     Motor_Init_Config_s chassis_motor_config = {
         .can_init_config.can_handle = &hcan1,
         .controller_param_init_config = {
+            // Jeffrey070318修改：底盘速度环参数改为使用robot_def.h中R1/R2独立宏，调参只改对应车种参数。
             .speed_PID = {
-                .Kp = 10, // 4.5
-                .Ki = 0,  // 0
-                .Kd = 0,  // 0
-                .IntegralLimit = 3000,
+                .Kp = CHASSIS_SPEED_PID_KP,
+                .Ki = CHASSIS_SPEED_PID_KI,
+                .Kd = CHASSIS_SPEED_PID_KD,
+                .IntegralLimit = CHASSIS_SPEED_PID_INTEGRAL_LIMIT,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                .MaxOut = 12000,
+                .MaxOut = CHASSIS_SPEED_PID_MAX_OUT,
             },
+            // Jeffrey070318修改：底盘电流环参数改为使用robot_def.h中R1/R2独立宏。
             .current_PID = {
-                .Kp = 0.5, // 0.4
-                .Ki = 0,   // 0
-                .Kd = 0,
-                .IntegralLimit = 3000,
+                .Kp = CHASSIS_CURRENT_PID_KP,
+                .Ki = CHASSIS_CURRENT_PID_KI,
+                .Kd = CHASSIS_CURRENT_PID_KD,
+                .IntegralLimit = CHASSIS_CURRENT_PID_INTEGRAL_LIMIT,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                .MaxOut = 15000,
+                .MaxOut = CHASSIS_CURRENT_PID_MAX_OUT,
             },
         },
         .controller_setting_init_config = {
@@ -101,23 +143,28 @@ void ChassisInit()
             .outer_loop_type = SPEED_LOOP,
             .close_loop_type = SPEED_LOOP | CURRENT_LOOP,
         },
-        .motor_type = M3508,
+        // Jeffrey070318修改：底盘电机型号改走robot_def.h，R1/R2可独立配置。
+        .motor_type = CHASSIS_MOTOR_TYPE,
     };
     //  @todo: 当前还没有设置电机的正反转,仍然需要手动添加reference的正负号,需要电机module的支持,待修改.
-    chassis_motor_config.can_init_config.tx_id = 1;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
+    // Jeffrey070318修改：左前轮ID和方向改走robot_def.h，调R1/R2时不再改chassis.c。
+    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_LF_ID;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_LF_REVERSE;
     motor_lf = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = 2;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
+    // Jeffrey070318修改：右前轮ID和方向改走robot_def.h。
+    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_RF_ID;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_RF_REVERSE;
     motor_rf = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = 4;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
+    // Jeffrey070318修改：左后轮ID和方向改走robot_def.h。
+    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_LB_ID;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_LB_REVERSE;
     motor_lb = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = 3;
-    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
+    // Jeffrey070318修改：右后轮ID和方向改走robot_def.h。
+    chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_RB_ID;
+    chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_RB_REVERSE;
     motor_rb = DJIMotorInit(&chassis_motor_config);
 
     //    referee_data = UITaskInit(&huart1,&ui_data); // 裁判系统初始化,会同时初始化UI
@@ -152,13 +199,14 @@ void ChassisInit()
 #endif // ONE_BOARD
 
     // 前向保持PID初始化
+    // Jeffrey070318修改：车头保持PID改走robot_def.h，R1/R2底盘参数分开调。
     heading_pid_config = (PID_Init_Config_s){
-        .Kp = 70.0f,
-        .Ki = 1.5f,
-        .Kd = 120.0f,
-        .MaxOut = 2500.0f,
-        .DeadBand = 0.3f,
-        .IntegralLimit = 400.0f,
+        .Kp = CHASSIS_HEADING_PID_KP,
+        .Ki = CHASSIS_HEADING_PID_KI,
+        .Kd = CHASSIS_HEADING_PID_KD,
+        .MaxOut = CHASSIS_HEADING_PID_MAX_OUT,
+        .DeadBand = CHASSIS_HEADING_PID_DEADBAND,
+        .IntegralLimit = CHASSIS_HEADING_PID_INTEGRAL_LIMIT,
         .Improve = PID_Integral_Limit | PID_Derivative_On_Measurement | PID_Trapezoid_Intergral,
     };
     PIDInit(&heading_pid, &heading_pid_config);
@@ -246,6 +294,7 @@ void ChassisTask()
 {
     // Jeffrey070318增加：底盘任务循环计数，确认ChassisTask是否持续运行。
     dbg_chassis_task_loop_cnt++;
+    ChassisUpdateMotorDebug();
     // 后续增加没收到消息的处理(双板的情况)
     // 获取新的控制信息
 #ifdef ONE_BOARD
