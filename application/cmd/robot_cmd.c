@@ -313,8 +313,7 @@ __attribute__((unused)) static void AutoNavigation(void)
  */
 static void RemoteControlSet()
 {
-    // Jeffrey070318修改：当前两开关阶段先固定为手动底盘，switch_left让给全车急停，switch_right让给机械臂动作。
-    chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW;
+    // Jeffrey070318修改：仅平移时保持车头；完全停杆时不追小角度误差，避免静止抖动。
     // Jeffrey070318增加：缓存CMD看到的遥控器原始值，判断rc_data指针是否正常更新。
     dbg_cmd_rocker_r_ = rc_data[TEMP].rc.rocker_r_;
     dbg_cmd_rocker_r1 = rc_data[TEMP].rc.rocker_r1;
@@ -323,20 +322,35 @@ static void RemoteControlSet()
     dbg_cmd_switch_left = rc_data[TEMP].rc.switch_left;
     dbg_cmd_switch_right = rc_data[TEMP].rc.switch_right;
 
-    if (abs(rc_data[TEMP].rc.rocker_r_) > CMD_REMOTE_DEADBAND)
+    const int move_x_active = abs(rc_data[TEMP].rc.rocker_r_) > CMD_REMOTE_DEADBAND;
+    const int move_y_active = abs(rc_data[TEMP].rc.rocker_r1) > CMD_REMOTE_DEADBAND;
+    const int yaw_active = abs(rc_data[TEMP].rc.rocker_l_) > CMD_REMOTE_DEADBAND;
+
+    if (move_x_active)
         chassis_cmd_send.vx = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r_;
     else
         chassis_cmd_send.vx = 0.0f;
 
-    if (abs(rc_data[TEMP].rc.rocker_r1) > CMD_REMOTE_DEADBAND)
+    if (move_y_active)
         chassis_cmd_send.vy = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r1;
     else
         chassis_cmd_send.vy = 0.0f;
 
-    if (abs(rc_data[TEMP].rc.rocker_l_) > CMD_REMOTE_DEADBAND)
+    if (yaw_active)
+    {
+        chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW;
         chassis_cmd_send.wz = (float)rc_data[TEMP].rc.rocker_l_ * CMD_REMOTE_YAW_SCALE;
-    else
+    }
+    else if (move_x_active || move_y_active)
+    {
+        chassis_cmd_send.chassis_mode = CHASSIS_KEEP_FRONT;
         chassis_cmd_send.wz = 0.0f;
+    }
+    else
+    {
+        chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW;
+        chassis_cmd_send.wz = 0.0f;
+    }
     // Jeffrey070318增加：缓存CMD下发底盘前的速度命令，判断死区/急停是否把输出清零。
     dbg_cmd_chassis_vx = chassis_cmd_send.vx;
     dbg_cmd_chassis_vy = chassis_cmd_send.vy;
@@ -347,10 +361,8 @@ static void RemoteControlSet()
 // Jeffrey070318增加：把左摇杆上下比例映射到pitch前/后目标，摇杆回中则回零点。
 static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
 {
-    if (abs(rocker_l1) <= CMD_REMOTE_DEADBAND)
-    {
-        return PITCH_REMOTE_ZERO_POS;
-    }
+    // Jeffrey070318增加：pitch摇杆方向修正，PITCH_STICK_DIRECTION=-1时上下颠倒
+    rocker_l1 = rocker_l1 * PITCH_STICK_DIRECTION;
 
     float ratio = (float)rocker_l1 / PITCH_REMOTE_STICK_MAX;
     if (ratio > 1.0f)
@@ -358,11 +370,27 @@ static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
     if (ratio < -1.0f)
         ratio = -1.0f;
 
+#if PITCH_REMOTE_MODE == 1
+    // Mode 1: 摇杆中心=后方起始位(BACK_POS), 下拉前移从BACK到ZERO
+    // ratio=0(中位)→BACK, ratio=+1(拉到底)→ZERO
+    (void)CMD_REMOTE_DEADBAND; // 本模式不使用死区，回中即停在后方起始位
+    if (ratio < 0.0f)
+    {
+        return PITCH_REMOTE_BACK_POS;
+    }
+    return PITCH_REMOTE_BACK_POS + ratio * (PITCH_REMOTE_ZERO_POS - PITCH_REMOTE_BACK_POS);
+#else
+    // Mode 0: 原有逻辑，摇杆中心=零点，上推前倾/下拉后仰
+    if (abs(rocker_l1) <= CMD_REMOTE_DEADBAND)
+    {
+        return PITCH_REMOTE_ZERO_POS;
+    }
     if (ratio > 0.0f)
     {
         return PITCH_REMOTE_ZERO_POS + ratio * (PITCH_REMOTE_FRONT_POS - PITCH_REMOTE_ZERO_POS);
     }
     return PITCH_REMOTE_ZERO_POS + (-ratio) * (PITCH_REMOTE_BACK_POS - PITCH_REMOTE_ZERO_POS);
+#endif
 }
 
 // Jeffrey070318修改：右开关专用于机械臂，向下为机械臂向上，回拨为回零点；发球拨杆后续再分配独立开关。
@@ -495,9 +523,6 @@ void RobotCMDTask()
     // SubGetMessage(shoot_feed_sub, &shoot_fetch_data);
     // SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
 
-    // 计算偏移角度,仅在右侧开关状态为[下]需要保持前向时使用
-    CalcOffsetAngle();
-
 // 更新光流模块偏航角,用于世界坐标系旋转映射
 #if ROBOT_ENABLE_OPTICAL_FLOW
 #if CHASSIS_YAW_SOURCE == YAW_SOURCE_DM_IMU
@@ -531,6 +556,9 @@ void RobotCMDTask()
     {
         RemoteOfflineStop();
     }
+
+    // 遥控/急停逻辑确定本周期底盘模式后再计算偏移角，保证重新平移时当周期锁当前yaw。
+    CalcOffsetAngle();
 
     delta_cmd_send.delta_action = GetDeltaAction();
     // Jeffrey070318增加：CMD每周期随Delta动作一起下发pitch目标，急停/离线时保持回零。

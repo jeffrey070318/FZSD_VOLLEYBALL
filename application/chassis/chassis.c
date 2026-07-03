@@ -371,8 +371,9 @@ void ChassisTask()
     last_chassis_mode = chassis_cmd_recv.chassis_mode;
 
     // 没有云台，底盘前方就是正方向，遥控器输入直接映射
-    chassis_vx = chassis_cmd_recv.vx;
-    chassis_vy = chassis_cmd_recv.vy;
+    // Jeffrey070318增加：底盘方向修正，正负由robot_def.h中CHASSIS_VX/VY_DIRECTION宏控制
+    chassis_vx = chassis_cmd_recv.vx * CHASSIS_VX_DIRECTION;
+    chassis_vy = chassis_cmd_recv.vy * CHASSIS_VY_DIRECTION;
 
     // 根据控制模式进行正运动学解算,计算底盘输出
     MecanumCalculate();

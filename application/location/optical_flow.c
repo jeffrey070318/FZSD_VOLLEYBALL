@@ -12,6 +12,9 @@
 #include "user_lib.h"
 #include "general_def.h"
 
+/** 光流模块安装高度,单位 m. 角位移(rad) × 高度(m) = 实际平移(m). */
+#define OPTICAL_FLOW_HEIGHT 0.25f
+
 /** 保存所有光流实例,用于串口回调中分发接收到的数据. */
 static OpticalFlowInstance *optical_flow_instances[OPTICAL_FLOW_MAX_INSTANCE] = {NULL};
 /** 当前已注册的光流实例数量. */
@@ -133,9 +136,9 @@ static void OpticalFlowApplyPayload(OpticalFlowInstance *instance)
 
     /* ===== 好帧: 正常计算 ===== */
 
-    /* 角位移(rad) × 固定高度 98mm = 实际平移(m). */
-    dx = angle_x * 0.15f;
-    dy = angle_y * 0.15f;
+    /* 角位移(rad) × 安装高度(m) = 实际平移(m). */
+    dx = angle_x * OPTICAL_FLOW_HEIGHT;
+    dy = angle_y * OPTICAL_FLOW_HEIGHT;
 
     /* 根据车底实际安装方向修正光流坐标系到车体坐标系. */
     if (instance->config.swap_xy)

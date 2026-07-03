@@ -115,6 +115,8 @@
 #define CHASSIS_R1_HEADING_PID_DEADBAND 0.3f                // R1车头保持角度死区
 #define CHASSIS_R1_HEADING_PID_INTEGRAL_LIMIT 400.0f        // R1车头保持角度环积分限幅
 #define CHASSIS_R1_ROTATE_WZ 2000.0f                        // R1小陀螺旋转角速度
+#define CHASSIS_R1_VX_DIRECTION -1                          // R1底盘X方向符号, 1=正向 -1=反向
+#define CHASSIS_R1_VY_DIRECTION -1                          // R1底盘Y方向符号, 1=正向 -1=反向
 
 /* R1 navigation and cmd */
 #define NAV_R1_MAX_SPEED 10000.0f                            // R1导航速度上限
@@ -177,6 +179,8 @@
 #define PITCH_R1_REMOTE_BACK_POS PITCH_R1_TEST_BACK_POS   // Jeffrey070318增加：R1左摇杆下拉对应的pitch背向目标。
 #define PITCH_R1_REMOTE_SPEED PITCH_R1_TEST_SPEED         // Jeffrey070318增加：R1遥控器控制pitch的位置速度模式速度。
 #define PITCH_R1_REMOTE_STICK_MAX 660.0f                  // Jeffrey070318增加：R1遥控器pitch摇杆满量程，用于比例映射。
+#define PITCH_R1_STICK_DIRECTION 1                        // Jeffrey070318增加：R1 pitch摇杆方向, 1=上推前倾 -1=上推后仰
+#define PITCH_R1_REMOTE_MODE 0                            // Jeffrey070318增加：R1 pitch摇杆映射模式, 0=原逻辑(中心=零点) 1=中心=最前点
 #define DELTA_R1_ORIGINAL_POS 0.0f                        // R1击球机构初始目标位置
 #define DELTA_R1_HIT_1_POS 0.0f                           // R1击球机构击球目标位置
 #define DELTA_R1_BACK_POS 0.0f                            // R1击球机构回收目标位置
@@ -219,6 +223,8 @@
 #define CHASSIS_R2_HEADING_PID_DEADBAND 0.3f                // R2车头保持角度死区
 #define CHASSIS_R2_HEADING_PID_INTEGRAL_LIMIT 400.0f        // R2车头保持角度环积分限幅
 #define CHASSIS_R2_ROTATE_WZ 2000.0f                        // R2小陀螺旋转角速度
+#define CHASSIS_R2_VX_DIRECTION -1                          // R2底盘X方向符号, 1=正向 -1=反向
+#define CHASSIS_R2_VY_DIRECTION -1                          // R2底盘Y方向符号, 1=正向 -1=反向
 
 /* R2 navigation and cmd */
 #define NAV_R2_MAX_SPEED 10000.0f                            // R2导航速度上限
@@ -258,7 +264,7 @@
 #define MIT_DELTA_R2_HIT_KP 300.0f                        // R2击球动作delta电机MIT位置P
 #define MIT_DELTA_R2_HIT_KD 3.0f                          // R2击球动作delta电机MIT速度D
 #define MIT_DELTA_R2_HIT_TORQ 5.0f                        // R2击球动作delta电机MIT前馈力矩
-#define MIT_DELTA_R2_GET_KP 250.0f                        // R2接球动作delta电机MIT位置P
+#define MIT_DELTA_R2_GET_KP 300.0f                        // R2接球动作delta电机MIT位置P
 #define MIT_DELTA_R2_GET_KD 3.0f                          // R2接球动作delta电机MIT速度D
 #define MIT_DELTA_R2_GET_TORQ 5.0f                        // R2接球动作delta电机MIT前馈力矩
 #define MIT_DELTA_R2_SLOW_KP 10.0f                        // R2慢速动作delta电机MIT位置P
@@ -275,12 +281,14 @@
 #define PITCH_R2_BACK_LIMIT_POS -0.74f                    // Jeffrey070318增加：R2 pitch背向实测机械限位，按零点反向取负并留余量调试。
 #define PITCH_R2_TEST_FRONT_POS 0.46f                     // Jeffrey070318修改：R2 pitch前向测试位置临时给到实测正向限位。
 #define PITCH_R2_TEST_BACK_POS -0.74f                     // Jeffrey070318修改：R2 pitch背向测试位置临时给到实测负向限位。
-#define PITCH_R2_TEST_SPEED 1.0f                          // Jeffrey070318增加：R2 pitch位置速度模式测试速度。
+#define PITCH_R2_TEST_SPEED 2.0f                          // Jeffrey070318增加：R2 pitch位置速度模式测试速度。
 #define PITCH_R2_REMOTE_ZERO_POS 0.0f                     // Jeffrey070318增加：R2遥控器控制pitch时的机械零点。
 #define PITCH_R2_REMOTE_FRONT_POS PITCH_R2_TEST_FRONT_POS // Jeffrey070318增加：R2左摇杆上推对应的pitch前向目标。
 #define PITCH_R2_REMOTE_BACK_POS PITCH_R2_TEST_BACK_POS   // Jeffrey070318增加：R2左摇杆下拉对应的pitch背向目标。
 #define PITCH_R2_REMOTE_SPEED PITCH_R2_TEST_SPEED         // Jeffrey070318增加：R2遥控器控制pitch的位置速度模式速度。
 #define PITCH_R2_REMOTE_STICK_MAX 660.0f                  // Jeffrey070318增加：R2遥控器pitch摇杆满量程，用于比例映射。
+#define PITCH_R2_STICK_DIRECTION -1                       // Jeffrey070318增加：R2 pitch摇杆方向, 1=上推前倾 -1=上推后仰
+#define PITCH_R2_REMOTE_MODE 1                            // Jeffrey070318增加：R2 pitch摇杆映射模式, 0=原逻辑(中心=零点) 1=中心=最前点
 #define DELTA_R2_ORIGINAL_POS 0.0f                        // R2击球机构初始目标位置
 #define DELTA_R2_HIT_1_POS 0.70f                          // Jeffrey070318修改：R2右开关机械臂发出目标改为实测最高点位置。
 #define DELTA_R2_BACK_POS 0.0f                            // R2击球机构回收目标位置
@@ -324,6 +332,8 @@
 #define CHASSIS_HEADING_PID_DEADBAND CHASSIS_R1_HEADING_PID_DEADBAND             // 业务代码使用的车头角度死区
 #define CHASSIS_HEADING_PID_INTEGRAL_LIMIT CHASSIS_R1_HEADING_PID_INTEGRAL_LIMIT // 业务代码使用的车头角度环积分限幅
 #define CHASSIS_ROTATE_WZ CHASSIS_R1_ROTATE_WZ                                   // 业务代码使用的小陀螺角速度
+#define CHASSIS_VX_DIRECTION CHASSIS_R1_VX_DIRECTION                             // 业务代码使用的底盘X方向符号
+#define CHASSIS_VY_DIRECTION CHASSIS_R1_VY_DIRECTION                             // 业务代码使用的底盘Y方向符号
 #define NAV_MAX_SPEED NAV_R1_MAX_SPEED                                           // 业务代码使用的导航速度上限
 #define NAV_SPEED_GAIN NAV_R1_SPEED_GAIN                                         // 业务代码使用的导航速度比例
 #define NAV_ARRIVAL_DIST NAV_R1_ARRIVAL_DIST                                     // 业务代码使用的导航到点距离
@@ -382,6 +392,8 @@
 #define PITCH_REMOTE_BACK_POS PITCH_R1_REMOTE_BACK_POS                           // Jeffrey070318增加：业务代码使用的pitch遥控背向目标
 #define PITCH_REMOTE_SPEED PITCH_R1_REMOTE_SPEED                                 // Jeffrey070318增加：业务代码使用的pitch遥控速度
 #define PITCH_REMOTE_STICK_MAX PITCH_R1_REMOTE_STICK_MAX                         // Jeffrey070318增加：业务代码使用的pitch摇杆满量程
+#define PITCH_STICK_DIRECTION PITCH_R1_STICK_DIRECTION                           // Jeffrey070318增加：业务代码使用的pitch摇杆方向
+#define PITCH_REMOTE_MODE PITCH_R1_REMOTE_MODE                                   // Jeffrey070318增加：业务代码使用的pitch摇杆映射模式
 #define DELTA_ORIGINAL_TARGET_POS DELTA_R1_ORIGINAL_POS                          // 业务代码使用的击球机构初始位置
 #define DELTA_HIT_1_TARGET_POS DELTA_R1_HIT_1_POS                                // 业务代码使用的击球目标位置
 #define DELTA_BACK_TARGET_POS DELTA_R1_BACK_POS                                  // 业务代码使用的回收目标位置
@@ -422,6 +434,8 @@
 #define CHASSIS_HEADING_PID_DEADBAND CHASSIS_R2_HEADING_PID_DEADBAND             // 业务代码使用的车头角度死区
 #define CHASSIS_HEADING_PID_INTEGRAL_LIMIT CHASSIS_R2_HEADING_PID_INTEGRAL_LIMIT // 业务代码使用的车头角度环积分限幅
 #define CHASSIS_ROTATE_WZ CHASSIS_R2_ROTATE_WZ                                   // 业务代码使用的小陀螺角速度
+#define CHASSIS_VX_DIRECTION CHASSIS_R2_VX_DIRECTION                             // 业务代码使用的底盘X方向符号
+#define CHASSIS_VY_DIRECTION CHASSIS_R2_VY_DIRECTION                             // 业务代码使用的底盘Y方向符号
 #define NAV_MAX_SPEED NAV_R2_MAX_SPEED                                           // 业务代码使用的导航速度上限
 #define NAV_SPEED_GAIN NAV_R2_SPEED_GAIN                                         // 业务代码使用的导航速度比例
 #define NAV_ARRIVAL_DIST NAV_R2_ARRIVAL_DIST                                     // 业务代码使用的导航到点距离
@@ -478,6 +492,8 @@
 #define PITCH_REMOTE_BACK_POS PITCH_R2_REMOTE_BACK_POS                           // Jeffrey070318增加：业务代码使用的pitch遥控背向目标
 #define PITCH_REMOTE_SPEED PITCH_R2_REMOTE_SPEED                                 // Jeffrey070318增加：业务代码使用的pitch遥控速度
 #define PITCH_REMOTE_STICK_MAX PITCH_R2_REMOTE_STICK_MAX                         // Jeffrey070318增加：业务代码使用的pitch摇杆满量程
+#define PITCH_STICK_DIRECTION PITCH_R2_STICK_DIRECTION                           // Jeffrey070318增加：业务代码使用的pitch摇杆方向
+#define PITCH_REMOTE_MODE PITCH_R2_REMOTE_MODE                                   // Jeffrey070318增加：业务代码使用的pitch摇杆映射模式
 #define DELTA_ORIGINAL_TARGET_POS DELTA_R2_ORIGINAL_POS                          // 业务代码使用的击球机构初始位置
 #define DELTA_HIT_1_TARGET_POS DELTA_R2_HIT_1_POS                                // 业务代码使用的击球目标位置
 #define DELTA_BACK_TARGET_POS DELTA_R2_BACK_POS                                  // 业务代码使用的回收目标位置
