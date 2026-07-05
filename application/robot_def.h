@@ -34,10 +34,14 @@
 #define ROBOT_ENABLE_SCREEN_TASK 0
 
 // Jeffrey070318增加：视觉相机暂未连接，置0跳过VisionInit/VisionSend，接好相机后改回1。
-#define ROBOT_ENABLE_VISION 0
+#define ROBOT_ENABLE_VISION 1
 
 // Jeffrey070318增加：光流计暂未连接，置0跳过OpticalFlowInit和周期读取，接好光流后改回1。
 #define ROBOT_ENABLE_OPTICAL_FLOW 1
+
+// Jeffrey070318增加：底盘调参用VOFA输出，走UART7 DMA；分频值按ChassisTask调用周期折算输出频率。
+#define ROBOT_ENABLE_VOFA_CHASSIS_DEBUG 1
+#define ROBOT_VOFA_CHASSIS_DEBUG_DIVIDER 20u
 
 // Jeffrey070318增加：CMD整车遥控入口开关，置1启用RobotCMDInit/RobotCMDTask，置0保留单模块直测。
 #define R2_DEBUG_ENABLE_CMD_APP 1
@@ -232,7 +236,7 @@
 #define NAV_R2_ARRIVAL_DIST 0.15f                            // R2导航到点判定距离
 #define CMD_R2_REMOTE_MOVE_SCALE 30.0f                       // R2遥控器平移摇杆比例
 #define CMD_R2_REMOTE_YAW_SCALE 4.0f                         // R2遥控器旋转摇杆比例
-#define CMD_R2_REMOTE_DEADBAND 50                            // R2遥控器摇杆死区
+#define CMD_R2_REMOTE_DEADBAND 80                            // R2遥控器摇杆死区
 #define CMD_R2_REMOTE_STOP_DIAL_THRESHOLD 300                // R2遥控器拨轮急停阈值
 #define VISION_R2_MODE VISION_MODE_COORDINATE                // Jeffrey070318增加：R2视觉模式，坐标模式/偏移模式二选一。
 #define VISION_R2_PID_X_KP 0.5f                              // Jeffrey070318增加：R2视觉偏移模式X轴PID比例系数。

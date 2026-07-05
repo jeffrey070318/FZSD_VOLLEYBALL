@@ -94,8 +94,12 @@ typedef struct
         int16_t rocker_r1; // 右竖直
         int16_t dial;      // 侧边拨轮
 
-        uint8_t switch_left;  // 左侧开关
-        uint8_t switch_right; // 右侧开关
+        uint8_t switch_left1;  // 左一开关, SBUS CH5
+        uint8_t switch_left2;  // 左二开关, SBUS CH6
+        uint8_t switch_right1; // 右一开关, SBUS CH7
+        uint8_t switch_right2; // 右二开关, SBUS CH8
+        uint8_t switch_left;   // 兼容旧接口, 等同 switch_left1
+        uint8_t switch_right;  // 兼容旧接口, 等同 switch_right1
     } rc;
     struct
     {

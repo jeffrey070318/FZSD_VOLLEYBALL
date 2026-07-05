@@ -23,6 +23,10 @@
 // #include "referee_UI.h"
 #include "controller.h"
 #include "arm_math.h"
+#if ROBOT_ENABLE_VOFA_CHASSIS_DEBUG
+#include "vofa.h"
+#include "usart.h"
+#endif
 
 /* 根据robot_def.h中的macro自动计算的参数 */
 #define HALF_WHEEL_BASE (WHEEL_BASE / 2.0f)     // 半轴距
@@ -111,6 +115,33 @@ static void ChassisUpdateMotorDebug()
         dbg_chassis_fb_ecd_rb = motor_rb->measure.ecd;
     }
 }
+
+#if ROBOT_ENABLE_VOFA_CHASSIS_DEBUG
+static void ChassisVofaSendDebug()
+{
+    static uint16_t vofa_divider = 0;
+    float vofa_data[11];
+
+    vofa_divider++;
+    if (vofa_divider < ROBOT_VOFA_CHASSIS_DEBUG_DIVIDER)
+        return;
+    vofa_divider = 0;
+
+    vofa_data[0] = chassis_cmd_recv.vx;
+    vofa_data[1] = chassis_cmd_recv.vy;
+    vofa_data[2] = chassis_cmd_recv.wz;
+    vofa_data[3] = vt_lf;
+    vofa_data[4] = vt_rf;
+    vofa_data[5] = vt_lb;
+    vofa_data[6] = vt_rb;
+    vofa_data[7] = dbg_chassis_fb_speed_lf;
+    vofa_data[8] = dbg_chassis_fb_speed_rf;
+    vofa_data[9] = dbg_chassis_fb_speed_lb;
+    vofa_data[10] = dbg_chassis_fb_speed_rb;
+
+    (void)vofa_justfloat_output_dma(vofa_data, 11u, &huart7);
+}
+#endif
 
 void ChassisInit()
 {
@@ -334,6 +365,9 @@ void ChassisTask()
 #ifdef CHASSIS_BOARD
         CANCommSend(chasiss_can_comm, (void *)&chassis_feedback_data);
 #endif // CHASSIS_BOARD
+#if ROBOT_ENABLE_VOFA_CHASSIS_DEBUG
+        ChassisVofaSendDebug();
+#endif
         return;
     }
     else
@@ -403,4 +437,7 @@ void ChassisTask()
 #ifdef CHASSIS_BOARD
     CANCommSend(chasiss_can_comm, (void *)&chassis_feedback_data);
 #endif // CHASSIS_BOARD
+#if ROBOT_ENABLE_VOFA_CHASSIS_DEBUG
+    ChassisVofaSendDebug();
+#endif
 }

@@ -31,3 +31,31 @@ void vofa_justfloat_output(float *data, uint8_t num , UART_HandleTypeDef *huart 
 
     HAL_UART_Transmit(huart, (uint8_t *)send_data, 4 * num + 4, 100);
 }
+
+HAL_StatusTypeDef vofa_justfloat_output_dma(const float *data, uint8_t num, UART_HandleTypeDef *huart)
+{
+    static uint8_t send_data[4u * VOFA_JUSTFLOAT_MAX_NUM + 4u];
+    send_float temp;
+
+    if (data == NULL || huart == NULL || num == 0u || num > VOFA_JUSTFLOAT_MAX_NUM)
+        return HAL_ERROR;
+
+    if (huart->gState != HAL_UART_STATE_READY)
+        return HAL_BUSY;
+
+    for (uint8_t i = 0; i < num; i++)
+    {
+        temp.float_t = data[i];
+        send_data[4u * i] = temp.uint8_t[0];
+        send_data[4u * i + 1u] = temp.uint8_t[1];
+        send_data[4u * i + 2u] = temp.uint8_t[2];
+        send_data[4u * i + 3u] = temp.uint8_t[3];
+    }
+
+    send_data[4u * num] = 0x00;
+    send_data[4u * num + 1u] = 0x00;
+    send_data[4u * num + 2u] = 0x80;
+    send_data[4u * num + 3u] = 0x7f;
+
+    return HAL_UART_Transmit_DMA(huart, send_data, 4u * num + 4u);
+}

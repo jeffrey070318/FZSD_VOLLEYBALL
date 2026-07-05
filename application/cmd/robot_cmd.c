@@ -82,6 +82,10 @@ volatile uint32_t dbg_cmd_emergency_stop_cnt = 0;
 volatile uint32_t dbg_cmd_ready_cnt = 0;
 volatile uint32_t dbg_cmd_rc_offline_stop_cnt = 0;
 volatile uint8_t dbg_cmd_rc_online = 0;
+volatile uint8_t dbg_cmd_switch_left1 = 0;
+volatile uint8_t dbg_cmd_switch_left2 = 0;
+volatile uint8_t dbg_cmd_switch_right1 = 0;
+volatile uint8_t dbg_cmd_switch_right2 = 0;
 volatile uint8_t dbg_cmd_switch_left = 0;
 volatile uint8_t dbg_cmd_switch_right = 0;
 volatile uint8_t dbg_cmd_robot_state = 0;
@@ -109,10 +113,11 @@ volatile float dbg_cmd_pitch_speed = 0.0f;      // Jeffrey070318增加：LiveWat
 
 static Robot_Status_e robot_state; // 机器人整体工作状态
 
-// Jeffrey070318增加：视觉偏移模式使用两路PID把画面误差转换成底盘vx/vy，坐标模式不编译这两个实例。
-#if ROBOT_ENABLE_VISION && (VISION_MODE == VISION_MODE_OFFSET)
+// Jeffrey070318修改：视觉模式由上位机cmd动态选择，偏移PID实例在视觉导航启用时常驻。
+#if ROBOT_ENABLE_VISION && ROBOT_ENABLE_OPTICAL_FLOW
 static PIDInstance pid_vision_x;
 static PIDInstance pid_vision_y;
+static uint8_t last_vision_cmd = CMD_MOVE_PLAN;
 #endif
 
 void RobotCMDInit()
@@ -180,14 +185,14 @@ void RobotCMDInit()
         optical_flow = OpticalFlowInit(&flow_conf);
     }
 #else
-    // Jeffrey070318增加：光流计未连接时不注册huart7，避免OpticalFlowInit链路触发HardFault。
+    // Jeffrey070318增加：光流计未连接时不注册huart10，避免OpticalFlowInit链路触发HardFault。
     optical_flow = NULL;
 #endif
 
     ins_imu_data = INS_Init(); // 获取 BMI088 EKF 解算结果指针(幂等,可安全多次调用)
 
-// Jeffrey070318增加：仅在视觉偏移模式初始化PID，坐标导航模式继续走距离到速度规划。
-#if ROBOT_ENABLE_VISION && (VISION_MODE == VISION_MODE_OFFSET)
+// Jeffrey070318修改：视觉cmd可在坐标导航和偏移PID间切换，因此PID在视觉导航启用时初始化。
+#if ROBOT_ENABLE_VISION && ROBOT_ENABLE_OPTICAL_FLOW
     PID_Init_Config_s cfg_x = {
         .Kp = VISION_PID_X_KP,
         .Ki = VISION_PID_X_KI,
@@ -262,8 +267,8 @@ static void CalcOffsetAngle()
  * 不动条件: 视觉离线 | 光流离线 | target=(0,0) | 已到达目标.\n
  * 右开关及朝向控制逻辑与手动模式一致, 本函数不干预.
  */
-// Jeffrey070318修改：两开关遥控阶段暂不占用自动导航入口，先保留函数供后续四开关映射恢复。
-__attribute__((unused)) static void AutoNavigation(void)
+// Jeffrey070318修改：左一开关下位进入自动导航，vx/vy由视觉/光流链路给出。
+static void AutoNavigation(void)
 {
 #if ROBOT_ENABLE_VISION && ROBOT_ENABLE_OPTICAL_FLOW
     if (!VisionIsOnline() || !OpticalFlowIsOnline(optical_flow) || (vision_recv_data->target_x == 0.0f && vision_recv_data->target_y == 0.0f))
@@ -273,32 +278,64 @@ __attribute__((unused)) static void AutoNavigation(void)
         return;
     }
 
-#if VISION_MODE == VISION_MODE_COORDINATE
-    // Jeffrey070318修改：坐标模式保持原有“目标坐标-光流坐标”的导航逻辑。
-    const OpticalFlow_Data_s *flow_data = OpticalFlowGetData(optical_flow);
-    float err_x = vision_recv_data->target_x - flow_data->position_x_global;
-    float err_y = vision_recv_data->target_y - flow_data->position_y_global;
-    float dist = Sqrt(err_x * err_x + err_y * err_y);
+    uint8_t cmd = vision_recv_data->cmd;
 
-    if (dist < NAV_ARRIVAL_DIST)
+    if (cmd != last_vision_cmd)
     {
+        if (cmd == CMD_OFFSET)
+        {
+            PID_Init_Config_s cfg_x = {
+                .Kp = VISION_PID_X_KP,
+                .Ki = VISION_PID_X_KI,
+                .Kd = VISION_PID_X_KD,
+                .MaxOut = VISION_PID_X_MAXOUT,
+                .DeadBand = VISION_PID_DEADBAND,
+                .Improve = PID_Integral_Limit,
+                .IntegralLimit = VISION_PID_X_MAXOUT * VISION_PID_INTEGRAL_RATIO,
+            };
+            PID_Init_Config_s cfg_y = {
+                .Kp = VISION_PID_Y_KP,
+                .Ki = VISION_PID_Y_KI,
+                .Kd = VISION_PID_Y_KD,
+                .MaxOut = VISION_PID_Y_MAXOUT,
+                .DeadBand = VISION_PID_DEADBAND,
+                .Improve = PID_Integral_Limit,
+                .IntegralLimit = VISION_PID_Y_MAXOUT * VISION_PID_INTEGRAL_RATIO,
+            };
+            PIDInit(&pid_vision_x, &cfg_x);
+            PIDInit(&pid_vision_y, &cfg_y);
+        }
         chassis_cmd_send.vx = 0.0f;
         chassis_cmd_send.vy = 0.0f;
+        last_vision_cmd = cmd;
+        return;
+    }
+
+    if (cmd == CMD_MOVE_PLAN)
+    {
+        const OpticalFlow_Data_s *flow_data = OpticalFlowGetData(optical_flow);
+        float err_x = vision_recv_data->target_x - flow_data->position_x_global;
+        float err_y = vision_recv_data->target_y - flow_data->position_y_global;
+        float dist = Sqrt(err_x * err_x + err_y * err_y);
+
+        if (dist > 3.0f || dist < NAV_ARRIVAL_DIST)
+        {
+            chassis_cmd_send.vx = 0.0f;
+            chassis_cmd_send.vy = 0.0f;
+        }
+        else
+        {
+            float speed = dist * NAV_SPEED_GAIN;
+            speed = float_constrain(speed, 0.0f, NAV_MAX_SPEED);
+            chassis_cmd_send.vx = (err_x / dist) * speed;
+            chassis_cmd_send.vy = (err_y / dist) * speed;
+        }
     }
     else
     {
-        float speed = dist * NAV_SPEED_GAIN;
-        speed = float_constrain(speed, 0.0f, NAV_MAX_SPEED);
-        chassis_cmd_send.vx = (err_x / dist) * speed;
-        chassis_cmd_send.vy = (err_y / dist) * speed;
+        chassis_cmd_send.vx = PIDCalculate(&pid_vision_x, -vision_recv_data->target_x, 0.0f);
+        chassis_cmd_send.vy = PIDCalculate(&pid_vision_y, -vision_recv_data->target_y, 0.0f);
     }
-#elif VISION_MODE == VISION_MODE_OFFSET
-    // Jeffrey070318增加：偏移模式直接把视觉像素误差经PID转换成底盘平移速度。
-    chassis_cmd_send.vx = PIDCalculate(&pid_vision_x, -vision_recv_data->target_x, 0.0f);
-    chassis_cmd_send.vy = PIDCalculate(&pid_vision_y, -vision_recv_data->target_y, 0.0f);
-#else
-#error Unsupported VISION_MODE in robot_def.h.
-#endif
 #else
     // Jeffrey070318增加：相机或光流未连接时禁用自动导航，底盘速度由遥控器逻辑接管。
     chassis_cmd_send.vx = 0.0f;
@@ -313,35 +350,48 @@ __attribute__((unused)) static void AutoNavigation(void)
  */
 static void RemoteControlSet()
 {
-    // Jeffrey070318修改：仅平移时保持车头；完全停杆时不追小角度误差，避免静止抖动。
     // Jeffrey070318增加：缓存CMD看到的遥控器原始值，判断rc_data指针是否正常更新。
     dbg_cmd_rocker_r_ = rc_data[TEMP].rc.rocker_r_;
     dbg_cmd_rocker_r1 = rc_data[TEMP].rc.rocker_r1;
     dbg_cmd_rocker_l1 = rc_data[TEMP].rc.rocker_l1;
     dbg_cmd_rocker_l_ = rc_data[TEMP].rc.rocker_l_;
+    dbg_cmd_switch_left1 = rc_data[TEMP].rc.switch_left1;
+    dbg_cmd_switch_left2 = rc_data[TEMP].rc.switch_left2;
+    dbg_cmd_switch_right1 = rc_data[TEMP].rc.switch_right1;
+    dbg_cmd_switch_right2 = rc_data[TEMP].rc.switch_right2;
     dbg_cmd_switch_left = rc_data[TEMP].rc.switch_left;
     dbg_cmd_switch_right = rc_data[TEMP].rc.switch_right;
 
     const int move_x_active = abs(rc_data[TEMP].rc.rocker_r_) > CMD_REMOTE_DEADBAND;
     const int move_y_active = abs(rc_data[TEMP].rc.rocker_r1) > CMD_REMOTE_DEADBAND;
     const int yaw_active = abs(rc_data[TEMP].rc.rocker_l_) > CMD_REMOTE_DEADBAND;
+    const int auto_mode = switch_is_down(rc_data[TEMP].rc.switch_left1);
 
-    if (move_x_active)
-        chassis_cmd_send.vx = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r_;
+    if (auto_mode)
+    {
+        AutoNavigation();
+    }
     else
-        chassis_cmd_send.vx = 0.0f;
+    {
+        if (move_x_active)
+            chassis_cmd_send.vx = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r_;
+        else
+            chassis_cmd_send.vx = 0.0f;
 
-    if (move_y_active)
-        chassis_cmd_send.vy = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r1;
-    else
-        chassis_cmd_send.vy = 0.0f;
+        if (move_y_active)
+            chassis_cmd_send.vy = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r1;
+        else
+            chassis_cmd_send.vy = 0.0f;
+    }
 
+    const int chassis_translate_active = auto_mode ? (chassis_cmd_send.vx != 0.0f || chassis_cmd_send.vy != 0.0f)
+                                                   : (move_x_active || move_y_active);
     if (yaw_active)
     {
         chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW;
         chassis_cmd_send.wz = (float)rc_data[TEMP].rc.rocker_l_ * CMD_REMOTE_YAW_SCALE;
     }
-    else if (move_x_active || move_y_active)
+    else if (chassis_translate_active)
     {
         chassis_cmd_send.chassis_mode = CHASSIS_KEEP_FRONT;
         chassis_cmd_send.wz = 0.0f;
@@ -393,7 +443,7 @@ static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
 #endif
 }
 
-// Jeffrey070318修改：右开关专用于机械臂，向下为机械臂向上，回拨为回零点；发球拨杆后续再分配独立开关。
+// Jeffrey070318修改：左二开关专用于机械臂，保持原有接球控制语义；右一腾出给急停。
 static void RemoteControlSetArm(void)
 {
     cmd_pitch_target_pos = RemotePitchTargetFromJoystick(rc_data[TEMP].rc.rocker_l1);
@@ -402,11 +452,11 @@ static void RemoteControlSetArm(void)
     dbg_cmd_pitch_target_pos = cmd_pitch_target_pos;
     dbg_cmd_pitch_speed = cmd_pitch_speed;
 
-    if (switch_is_down(rc_data[TEMP].rc.switch_right))
+    if (switch_is_down(rc_data[TEMP].rc.switch_left2))
         cmd_delta_action = DELTA_HIT;
     else
         cmd_delta_action = DELTA_READY;
-    // Jeffrey070318增加：缓存CMD对右开关转换出的机械臂动作。
+    // Jeffrey070318增加：缓存CMD对左二开关转换出的机械臂动作。
     dbg_cmd_delta_action = (uint8_t)cmd_delta_action;
 #if ROBOT_HAS_SERVE
     // Jeffrey070318修改：当前右开关不再控制launcher，避免R1调机械臂时误触发发球拨杆。
@@ -457,16 +507,15 @@ __attribute__((unused)) static void MouseKeySet()
 }
 
 /**
- * @brief  紧急停止,包括遥控器左上侧拨轮打满/重要模块离线/双板通信失效等
- *         停止阈值由CMD_REMOTE_STOP_DIAL_THRESHOLD按R1/R2映射,后续可改为开关控制.
+ * @brief  紧急停止,包括右一开关下位/重要模块离线/双板通信失效等
  *
  * @todo   后续修改为遥控器离线则电机停止(关闭遥控器急停),通过给遥控器模块添加daemon实现
  *
  */
 static void EmergencyHandler()
 {
-    // Jeffrey070318修改：左开关只有下位急停，回到中位/上位都恢复运行，避免急停锁住后右开关动作被持续覆盖。
-    if (switch_is_down(rc_data[TEMP].rc.switch_left)) // 后续再叠加重要应用/模块离线判断
+    // Jeffrey070318修改：右一开关下位急停，回拨恢复运行；右二暂不参与CMD控制。
+    if (switch_is_down(rc_data[TEMP].rc.switch_right1)) // 后续再叠加重要应用/模块离线判断
     {
         robot_state = ROBOT_STOP;
         // gimbal_cmd_send.gimbal_mode = GIMBAL_ZERO_FORCE;
@@ -485,7 +534,7 @@ static void EmergencyHandler()
         // shoot_cmd_send.load_mode = LOAD_STOP;
         LOGERROR("[CMD] emergency stop!");
     }
-    // Jeffrey070318修改：左开关离开下位即恢复整车运行，符合“回拨解除急停”的测试习惯。
+    // Jeffrey070318修改：右一开关离开下位即恢复整车运行，符合“回拨解除急停”的测试习惯。
     else
     {
         robot_state = ROBOT_READY;
@@ -573,6 +622,13 @@ void RobotCMDTask()
 
 // 上报世界坐标系位置及偏航角到视觉上位机
 #if ROBOT_ENABLE_VISION
+    if (!dbg_cmd_rc_online)
+        vision_send_data.mode = MODE_IDLE;
+    else if (switch_is_down(rc_data[TEMP].rc.switch_left1))
+        vision_send_data.mode = MODE_SELF;
+    else
+        vision_send_data.mode = MODE_REMOTE;
+
 #if CHASSIS_YAW_SOURCE == YAW_SOURCE_DM_IMU
     vision_send_data.robot_yaw = DM_IMU_GetData()->yaw;
 #elif CHASSIS_YAW_SOURCE == YAW_SOURCE_BMI088_INS

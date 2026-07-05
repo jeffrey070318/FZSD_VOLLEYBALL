@@ -22,12 +22,14 @@ typedef enum {
 } Robot_State_e;
 
 typedef enum {
-    CMD_MOVE_PLAN = 0
+    CMD_MOVE_PLAN = 0,
+    CMD_OFFSET    = 1
 } Plan_Cmd_e;
 
 #pragma pack(1)
 
 typedef struct {
+    uint8_t cmd;
     float target_x;
     float target_y;
     float target_yaw;

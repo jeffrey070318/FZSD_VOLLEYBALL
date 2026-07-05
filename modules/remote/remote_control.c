@@ -1,7 +1,7 @@
 /**
  * @file remote_control.c
  * @brief  遥控器模块,富斯i6x遥控器数据解析模块,适配SBUS协议,美国手映射,无拨轮,SWB/SWC开关适配
- *         Jeffrey070318修改：保留CH1-CH16调试解析，实际控制按YYP六通道配置使用CH5/CH6拨码。
+ *         Jeffrey070318修改：保留CH1-CH16调试解析，CH5/CH6/CH7/CH8分别作为左一/左二/右一/右二拨杆。
  *
  */
 #include "remote_control.h"
@@ -16,6 +16,7 @@
 
 #define REMOTE_CONTROL_FRAME_SIZE 25u // SBUS帧大小25字节（富斯IA6B）
 #define SBUS_CHANNEL_NUM 16u          // Jeffrey070318增加：SBUS标准最多16个模拟通道，调试拨码时全部解析出来。
+#define SBUS_SWITCH_THRESHOLD 500     // 两态拨杆阈值，通道过零附近保持上一次状态，防止切换瞬间抖动。
 
 // #define SBUS_STICK_RANGE 1024   // ch[i] = raw - offset 后的理论幅值
 #define SBUS_STICK_RANGE 784 // ch[i] = raw - offset 后的实测值
@@ -41,6 +42,10 @@ volatile int16_t dbg_rc_rocker_l_ = 0;
 volatile int16_t dbg_rc_rocker_l1 = 0;
 volatile int16_t dbg_rc_rocker_r_ = 0;
 volatile int16_t dbg_rc_rocker_r1 = 0;
+volatile uint8_t dbg_rc_switch_left1 = 0;
+volatile uint8_t dbg_rc_switch_left2 = 0;
+volatile uint8_t dbg_rc_switch_right1 = 0;
+volatile uint8_t dbg_rc_switch_right2 = 0;
 volatile uint8_t dbg_rc_switch_left = 0;
 volatile uint8_t dbg_rc_switch_right = 0;
 
@@ -67,6 +72,19 @@ static int16_t SBUSReadChannel(const uint8_t *sbus_buf, uint8_t channel_index)
                    ((uint32_t)sbus_buf[byte_index + 2u] << (16u - bit_offset));
 
     return (int16_t)((raw & 0x07FFu) - RC_CH_VALUE_OFFSET);
+}
+
+static uint8_t SBUSSwitchFromChannel(int16_t channel, uint8_t last_state)
+{
+    if (channel > SBUS_SWITCH_THRESHOLD)
+        return RC_SW_DOWN;
+    if (channel < -SBUS_SWITCH_THRESHOLD)
+        return RC_SW_UP;
+
+    if (last_state == RC_SW_DOWN || last_state == RC_SW_UP)
+        return last_state;
+
+    return RC_SW_UP;
 }
 
 // /**
@@ -147,21 +165,23 @@ static void sbus_to_rc(const uint8_t *sbus_buf)
     // 通道映射（富斯i6x美国手）：
     // Ch1 → 右摇杆水平（rocker_r_） | Ch2 → 右摇杆竖直（rocker_r1）
     // Ch3 → 左摇杆竖直（rocker_l1） | Ch4 → 左摇杆水平（rocker_l_）
-    // Jeffrey070318修改：统一解析CH1-CH16，实际六通道配置下CH5/CH6用于左右拨码，后续通道仅供LiveWatch排查。
+    // Jeffrey070318修改：统一解析CH1-CH16，CH5/CH6/CH7/CH8用于左一/左二/右一/右二拨码。
     int16_t ch[SBUS_CHANNEL_NUM] = {0};
     for (uint8_t i = 0; i < SBUS_CHANNEL_NUM; i++) // Jeffrey070318修改：LiveWatch同步显示CH1-CH16。
     {
         ch[i] = SBUSReadChannel(sbus_buf, i);
         dbg_rc_raw_ch[i] = ch[i];
     }
-    // Jeffrey070318修改：CH1-CH6按YYP验证过的公式显式解析，避免通用解析影响当前六通道遥控器排查。
+    // Jeffrey070318修改：CH1-CH8按YYP验证过的公式显式解析，避免通用解析影响当前遥控器排查。
     ch[0] = ((sbus_buf[1] | (sbus_buf[2] << 8)) & 0x07FF) - RC_CH_VALUE_OFFSET;
     ch[1] = (((sbus_buf[2] >> 3) | (sbus_buf[3] << 5)) & 0x07FF) - RC_CH_VALUE_OFFSET;
     ch[2] = (((sbus_buf[3] >> 6) | (sbus_buf[4] << 2) | (sbus_buf[5] << 10)) & 0x07FF) - RC_CH_VALUE_OFFSET;
     ch[3] = (((sbus_buf[5] >> 1) | (sbus_buf[6] << 7)) & 0x07FF) - RC_CH_VALUE_OFFSET;
     ch[4] = (((sbus_buf[6] >> 4) | (sbus_buf[7] << 4)) & 0x07FF) - RC_CH_VALUE_OFFSET;
     ch[5] = (((sbus_buf[7] >> 7) | (sbus_buf[8] << 1) | (sbus_buf[9] << 9)) & 0x07FF) - RC_CH_VALUE_OFFSET;
-    for (uint8_t i = 0; i < 6; i++) // Jeffrey070318修改：前六通道调试值同步为YYP公式结果，便于和学长工程直接对比。
+    ch[6] = (((sbus_buf[9] >> 2) | (sbus_buf[10] << 6)) & 0x07FF) - RC_CH_VALUE_OFFSET;
+    ch[7] = (((sbus_buf[10] >> 5) | (sbus_buf[11] << 3) | (sbus_buf[12] << 11)) & 0x07FF) - RC_CH_VALUE_OFFSET;
+    for (uint8_t i = 0; i < 8; i++) // Jeffrey070318修改：前八通道调试值同步为YYP公式结果，便于和学长工程直接对比。
     {
         dbg_rc_raw_ch[i] = ch[i];
     }
@@ -210,38 +230,20 @@ static void sbus_to_rc(const uint8_t *sbus_buf)
     dbg_rc_rocker_l1 = rc_ctrl[TEMP].rc.rocker_l1;
     dbg_rc_rocker_l_ = rc_ctrl[TEMP].rc.rocker_l_;
 
-    // ========== 4. 开关解析（适配YYP六通道配置的CH5/CH6拨码开关） ==========
-    // 开关数值映射（SBUS通道值：784=下，0=中，-784=上 → 注意之前减去了1024的偏置 ）
+    // ========== 4. 开关解析（CH5/CH6/CH7/CH8分别为左一/左二/右一/右二） ==========
+    // 两态拨杆只输出UP/DOWN；通道切换过零附近保持上一次状态，不输出MID。
+    rc_ctrl[TEMP].rc.switch_left1 = SBUSSwitchFromChannel(ch[4], rc_ctrl[LAST].rc.switch_left1);
+    rc_ctrl[TEMP].rc.switch_left2 = SBUSSwitchFromChannel(ch[5], rc_ctrl[LAST].rc.switch_left2);
+    rc_ctrl[TEMP].rc.switch_right1 = SBUSSwitchFromChannel(ch[6], rc_ctrl[LAST].rc.switch_right1);
+    rc_ctrl[TEMP].rc.switch_right2 = SBUSSwitchFromChannel(ch[7], rc_ctrl[LAST].rc.switch_right2);
+    rc_ctrl[TEMP].rc.switch_left = rc_ctrl[TEMP].rc.switch_left1;
+    rc_ctrl[TEMP].rc.switch_right = rc_ctrl[TEMP].rc.switch_right1;
 
-#define SW_THRESHOLD 500 // 阈值，防止抖动
-
-    // Jeffrey070318修改：遥控器已改回六通道配置，左开关按YYP代码读取CH5。
-    if (ch[4] > SW_THRESHOLD)
-    {
-        rc_ctrl[TEMP].rc.switch_left = RC_SW_DOWN; // 下
-    }
-    else if (ch[4] < -SW_THRESHOLD)
-    {
-        rc_ctrl[TEMP].rc.switch_left = RC_SW_UP; // 上
-    }
-    else
-    {
-        rc_ctrl[TEMP].rc.switch_left = RC_SW_MID; // 中（仅三档开关有效）
-    }
-    // Jeffrey070318修改：遥控器已改回六通道配置，右开关按YYP代码读取CH6。
-    if (ch[5] > SW_THRESHOLD)
-    {
-        rc_ctrl[TEMP].rc.switch_right = RC_SW_DOWN; // 下
-    }
-    else if (ch[5] < -SW_THRESHOLD)
-    {
-        rc_ctrl[TEMP].rc.switch_right = RC_SW_UP; // 上
-    }
-    else
-    {
-        rc_ctrl[TEMP].rc.switch_right = RC_SW_MID; // 中（仅三档开关有效）
-    }
-    // Jeffrey070318增加：保存开关解析结果，排查是否被急停开关持续压住。
+    // Jeffrey070318增加：保存开关解析结果，排查四个拨杆通道映射是否正确。
+    dbg_rc_switch_left1 = rc_ctrl[TEMP].rc.switch_left1;
+    dbg_rc_switch_left2 = rc_ctrl[TEMP].rc.switch_left2;
+    dbg_rc_switch_right1 = rc_ctrl[TEMP].rc.switch_right1;
+    dbg_rc_switch_right2 = rc_ctrl[TEMP].rc.switch_right2;
     dbg_rc_switch_left = rc_ctrl[TEMP].rc.switch_left;
     dbg_rc_switch_right = rc_ctrl[TEMP].rc.switch_right;
 

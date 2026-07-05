@@ -13,7 +13,9 @@
 #include "robot_def.h"
 #include <string.h>
 
+#ifdef VISION_USE_UART
 static USARTInstance *vision_usart_instance;
+#endif
 static Vision_Recv_s recv_data;
 static DaemonInstance *vision_daemon_instance;
 
@@ -42,6 +44,7 @@ static void DecodeVision(void)
     if (xor_calc != buf[VISION_RECV_SIZE - 2])
         return;
 
+    recv_data.cmd = buf[1];
     memcpy(&recv_data.target_x, &buf[4], 4);
     memcpy(&recv_data.target_y, &buf[8], 4);
     memcpy(&recv_data.target_yaw, &buf[12], 4);
@@ -61,7 +64,7 @@ Vision_Recv_s *VisionInit(UART_HandleTypeDef *_handle)
     Daemon_Init_Config_s daemon_conf = {
         .callback = VisionOfflineCallback,
         .owner_id = vision_usart_instance,
-        .reload_count = 10,
+        .reload_count = 200, /* 100Hz * 2s, match the upper-computer update tolerance. */
     };
     vision_daemon_instance = DaemonRegister(&daemon_conf);
 
@@ -110,6 +113,7 @@ static void DecodeVision(uint16_t recv_len)
     if (xor_calc != vis_recv_buff[VISION_RECV_SIZE - 2])
         return;
 
+    recv_data.cmd = vis_recv_buff[1];
     memcpy(&recv_data.target_x, &vis_recv_buff[4], 4);
     memcpy(&recv_data.target_y, &vis_recv_buff[8], 4);
     memcpy(&recv_data.target_yaw, &vis_recv_buff[12], 4);
@@ -128,7 +132,7 @@ Vision_Recv_s *VisionInit(UART_HandleTypeDef *_handle)
     Daemon_Init_Config_s daemon_conf = {
         .callback = VisionOfflineCallback,
         .owner_id = NULL,
-        .reload_count = 5,
+        .reload_count = 200, /* 100Hz * 2s, match the upper-computer update tolerance. */
     };
     vision_daemon_instance = DaemonRegister(&daemon_conf);
 
