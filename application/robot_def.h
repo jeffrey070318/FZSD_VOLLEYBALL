@@ -33,7 +33,7 @@
 // Jeffrey070318增加：LCD屏幕任务为R1/R2共通调试显示，置1创建StartScreenTask，置0只编译不运行。
 #define ROBOT_ENABLE_SCREEN_TASK 0
 
-// Jeffrey070318增加：视觉相机暂未连接，置0跳过VisionInit/VisionSend，接好相机后改回1。
+// Jeffrey070318修改：USB默认任务栈已加大，恢复视觉VCP调用用于算法联调。
 #define ROBOT_ENABLE_VISION 1
 
 // Jeffrey070318增加：光流计暂未连接，置0跳过OpticalFlowInit和周期读取，接好光流后改回1。
@@ -227,8 +227,8 @@
 #define CHASSIS_R2_HEADING_PID_DEADBAND 0.3f                // R2车头保持角度死区
 #define CHASSIS_R2_HEADING_PID_INTEGRAL_LIMIT 400.0f        // R2车头保持角度环积分限幅
 #define CHASSIS_R2_ROTATE_WZ 2000.0f                        // R2小陀螺旋转角速度
-#define CHASSIS_R2_VX_DIRECTION -1                          // R2底盘X方向符号, 1=正向 -1=反向
-#define CHASSIS_R2_VY_DIRECTION -1                          // R2底盘Y方向符号, 1=正向 -1=反向
+#define CHASSIS_R2_VX_DIRECTION 1                           // R2底盘X方向符号, 1=正向 -1=反向
+#define CHASSIS_R2_VY_DIRECTION 1                           // R2底盘Y方向符号, 1=正向 -1=反向
 
 /* R2 navigation and cmd */
 #define NAV_R2_MAX_SPEED 10000.0f                            // R2导航速度上限
