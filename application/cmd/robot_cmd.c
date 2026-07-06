@@ -120,6 +120,7 @@ static Robot_Status_e robot_state; // 机器人整体工作状态
 static PIDInstance pid_vision_x;
 static PIDInstance pid_vision_y;
 static uint8_t last_vision_cmd = CMD_MOVE_PLAN;
+static uint16_t offset_invalid_cnt = 0;
 #endif
 
 void RobotCMDInit()
@@ -273,7 +274,7 @@ static void CalcOffsetAngle()
 static void AutoNavigation(void)
 {
 #if ROBOT_ENABLE_VISION && ROBOT_ENABLE_OPTICAL_FLOW
-    if (!VisionIsOnline() || !OpticalFlowIsOnline(optical_flow) || (vision_recv_data->target_x == 0.0f && vision_recv_data->target_y == 0.0f))
+    if (!VisionIsOnline() || !OpticalFlowIsOnline(optical_flow))
     {
         chassis_cmd_send.vx = 0.0f;
         chassis_cmd_send.vy = 0.0f;
@@ -306,6 +307,7 @@ static void AutoNavigation(void)
             };
             PIDInit(&pid_vision_x, &cfg_x);
             PIDInit(&pid_vision_y, &cfg_y);
+            offset_invalid_cnt = 0;
         }
         chassis_cmd_send.vx = 0.0f;
         chassis_cmd_send.vy = 0.0f;
@@ -316,6 +318,14 @@ static void AutoNavigation(void)
     if (cmd == CMD_MOVE_PLAN)
     {
         const OpticalFlow_Data_s *flow_data = OpticalFlowGetData(optical_flow);
+
+        if (vision_recv_data->target_x == 0.0f && vision_recv_data->target_y == 0.0f)
+        {
+            chassis_cmd_send.vx = 0.0f;
+            chassis_cmd_send.vy = 0.0f;
+            return;
+        }
+
         float err_x = vision_recv_data->target_x - flow_data->position_x_global;
         float err_y = vision_recv_data->target_y - flow_data->position_y_global;
         float dist = Sqrt(err_x * err_x + err_y * err_y);
@@ -335,8 +345,27 @@ static void AutoNavigation(void)
     }
     else
     {
-        chassis_cmd_send.vx = PIDCalculate(&pid_vision_x, -vision_recv_data->target_x, 0.0f);
-        chassis_cmd_send.vy = PIDCalculate(&pid_vision_y, -vision_recv_data->target_y, 0.0f);
+        if (vision_recv_data->target_x == 0.0f && vision_recv_data->target_y == 0.0f)
+        {
+            offset_invalid_cnt++;
+            if (offset_invalid_cnt >= 200u)
+            {
+                chassis_cmd_send.vx = 0.0f;
+                chassis_cmd_send.vy = 0.0f;
+            }
+            else
+            {
+                float decay = 1.0f - (float)offset_invalid_cnt / 200.0f;
+                chassis_cmd_send.vx *= decay;
+                chassis_cmd_send.vy *= decay;
+            }
+        }
+        else
+        {
+            offset_invalid_cnt = 0;
+            chassis_cmd_send.vx = PIDCalculate(&pid_vision_x, -vision_recv_data->target_x, 0.0f);
+            chassis_cmd_send.vy = PIDCalculate(&pid_vision_y, -vision_recv_data->target_y, 0.0f);
+        }
     }
 #else
     // Jeffrey070318增加：相机或光流未连接时禁用自动导航，底盘速度由遥控器逻辑接管。

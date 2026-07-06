@@ -239,9 +239,9 @@
 #define CHASSIS_R2_VY_DIRECTION 1                           // R2底盘Y方向符号, 1=正向 -1=反向
 
 /* R2 navigation and cmd */
-#define NAV_R2_MAX_SPEED 10000.0f             // R2导航速度上限
-#define NAV_R2_SPEED_GAIN 6000.0f             // R2导航距离到速度的比例
-#define NAV_R2_ARRIVAL_DIST 0.15f             // R2导航到点判定距离
+#define NAV_R2_MAX_SPEED 16000.0f             // R2导航速度上限，按YYP视觉坐标导航参数对齐。
+#define NAV_R2_SPEED_GAIN 60000.0f            // R2导航距离到速度的比例，按YYP视觉坐标导航参数对齐。
+#define NAV_R2_ARRIVAL_DIST 0.10f             // R2导航到点判定距离，按YYP视觉坐标导航参数对齐。
 #define CMD_R2_REMOTE_MOVE_SCALE 30.0f        // R2遥控器平移摇杆比例
 #define CMD_R2_REMOTE_YAW_SCALE 4.0f          // R2遥控器旋转摇杆比例
 #define CMD_R2_REMOTE_YAW_MAX_WZ 1600.0f      // R2遥控器旋转二次曲线满杆输出上限，优先保证角度微调精度。
@@ -251,14 +251,14 @@
 
 // 最终挑战
 #define VISION_R2_MODE VISION_MODE_COORDINATE // Jeffrey070318增加：R2视觉模式，坐标模式/偏移模式二选一。
-#define VISION_R2_PID_X_KP 0.5f               // Jeffrey070318增加：R2视觉偏移模式X轴PID比例系数。
-#define VISION_R2_PID_X_KI 0.01f              // Jeffrey070318增加：R2视觉偏移模式X轴PID积分系数。
-#define VISION_R2_PID_X_KD 0.0f               // Jeffrey070318增加：R2视觉偏移模式X轴PID微分系数。
-#define VISION_R2_PID_X_MAXOUT 10000.0f       // Jeffrey070318增加：R2视觉偏移模式X轴速度输出限幅。
-#define VISION_R2_PID_Y_KP 0.5f               // Jeffrey070318增加：R2视觉偏移模式Y轴PID比例系数。
-#define VISION_R2_PID_Y_KI 0.01f              // Jeffrey070318增加：R2视觉偏移模式Y轴PID积分系数。
-#define VISION_R2_PID_Y_KD 0.0f               // Jeffrey070318增加：R2视觉偏移模式Y轴PID微分系数。
-#define VISION_R2_PID_Y_MAXOUT 10000.0f       // Jeffrey070318增加：R2视觉偏移模式Y轴速度输出限幅。
+#define VISION_R2_PID_X_KP 100.0f             // Jeffrey070318增加：R2视觉偏移模式X轴PID比例系数。
+#define VISION_R2_PID_X_KI 0.5f               // Jeffrey070318增加：R2视觉偏移模式X轴PID积分系数。
+#define VISION_R2_PID_X_KD 30.0f              // Jeffrey070318增加：R2视觉偏移模式X轴PID微分系数。
+#define VISION_R2_PID_X_MAXOUT 25000.0f       // Jeffrey070318增加：R2视觉偏移模式X轴速度输出限幅。
+#define VISION_R2_PID_Y_KP 120.0f             // Jeffrey070318增加：R2视觉偏移模式Y轴PID比例系数。
+#define VISION_R2_PID_Y_KI 0.5f               // Jeffrey070318增加：R2视觉偏移模式Y轴PID积分系数。
+#define VISION_R2_PID_Y_KD 45.0f              // Jeffrey070318增加：R2视觉偏移模式Y轴PID微分系数。
+#define VISION_R2_PID_Y_MAXOUT 20000.0f       // Jeffrey070318增加：R2视觉偏移模式Y轴速度输出限幅。
 #define VISION_R2_PID_DEADBAND 2.0f           // Jeffrey070318增加：R2视觉偏移PID死区，过滤小像素误差。
 #define VISION_R2_PID_INTEGRAL_RATIO 0.3f     // Jeffrey070318增加：R2视觉偏移PID积分限幅相对MaxOut的比例。
 
