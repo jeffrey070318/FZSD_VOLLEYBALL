@@ -65,7 +65,7 @@ static Vision_Send_s vision_send_data; // 视觉发送数据
 
 // Jeffrey070318增加：cmd层使用中性的Delta动作缓存，R1/R2分别在小函数内映射输入来源。
 static Delta_Action_e cmd_delta_action = DELTA_READY;
-static float cmd_pitch_target_pos = PITCH_REMOTE_ZERO_POS; // Jeffrey070318增加：缓存左摇杆映射出的pitch目标位置。
+static float cmd_pitch_target_pos = PITCH_REMOTE_ZERO_POS; // Jeffrey070318增加：缓存CMD下发的pitch目标位置。
 static float cmd_pitch_speed = PITCH_REMOTE_SPEED;         // Jeffrey070318增加：缓存pitch位置速度模式速度，随车种参数切换。
 static uint8_t cmd_test_seq = 0;
 static uint8_t dbg_delta_state = 0;
@@ -98,7 +98,9 @@ volatile float dbg_cmd_chassis_vx = 0.0f;
 volatile float dbg_cmd_chassis_vy = 0.0f;
 volatile float dbg_cmd_chassis_wz = 0.0f;
 volatile uint8_t dbg_cmd_chassis_mode = 0;
-volatile float dbg_cmd_pitch_target_pos = 0.0f; // Jeffrey070318增加：LiveWatch查看CMD由左摇杆换算出的pitch目标。
+volatile uint16_t dbg_cmd_keep_front_hold_ticks = 0;
+volatile uint8_t dbg_cmd_keep_front_lock_active = 0;
+volatile float dbg_cmd_pitch_target_pos = 0.0f; // Jeffrey070318增加：LiveWatch查看CMD下发给pitch的目标位置。
 volatile float dbg_cmd_pitch_speed = 0.0f;      // Jeffrey070318增加：LiveWatch查看CMD下发给pitch的位置速度模式速度。
 
 // static Publisher_t *gimbal_cmd_pub;            // 云台控制消息发布者
@@ -343,6 +345,25 @@ static void AutoNavigation(void)
 #endif
 }
 
+// Jeffrey070318增加：遥控旋转使用二次曲线，小摇杆保留更细角度控制，满杆仍保留可用转速。
+static float RemoteYawWzFromJoystick(int16_t rocker_yaw)
+{
+    int16_t abs_rocker = abs(rocker_yaw);
+    if (abs_rocker <= CMD_REMOTE_DEADBAND)
+        return 0.0f;
+
+    float range = CMD_REMOTE_YAW_STICK_MAX - (float)CMD_REMOTE_DEADBAND;
+    if (range <= 0.0f)
+        return 0.0f;
+
+    float ratio = ((float)abs_rocker - (float)CMD_REMOTE_DEADBAND) / range;
+    if (ratio > 1.0f)
+        ratio = 1.0f;
+
+    float wz = ratio * ratio * CMD_REMOTE_YAW_MAX_WZ;
+    return (rocker_yaw >= 0) ? wz : -wz;
+}
+
 /**
  * YYP0418修改
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
@@ -350,6 +371,9 @@ static void AutoNavigation(void)
  */
 static void RemoteControlSet()
 {
+    static uint8_t keep_front_lock_active = 0;
+    static uint16_t keep_front_idle_ticks = 0;
+
     // Jeffrey070318增加：缓存CMD看到的遥控器原始值，判断rc_data指针是否正常更新。
     dbg_cmd_rocker_r_ = rc_data[TEMP].rc.rocker_r_;
     dbg_cmd_rocker_r1 = rc_data[TEMP].rc.rocker_r1;
@@ -388,11 +412,22 @@ static void RemoteControlSet()
                                                    : (move_x_active || move_y_active);
     if (yaw_active)
     {
+        keep_front_lock_active = 0;
+        keep_front_idle_ticks = 0;
         chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW;
-        chassis_cmd_send.wz = (float)rc_data[TEMP].rc.rocker_l_ * CMD_REMOTE_YAW_SCALE;
+        chassis_cmd_send.wz = RemoteYawWzFromJoystick(rc_data[TEMP].rc.rocker_l_);
     }
     else if (chassis_translate_active)
     {
+        keep_front_lock_active = 1;
+        keep_front_idle_ticks = 0;
+        chassis_cmd_send.chassis_mode = CHASSIS_KEEP_FRONT;
+        chassis_cmd_send.wz = 0.0f;
+    }
+    else if (keep_front_lock_active)
+    {
+        if (keep_front_idle_ticks < 0xFFFFu)
+            keep_front_idle_ticks++;
         chassis_cmd_send.chassis_mode = CHASSIS_KEEP_FRONT;
         chassis_cmd_send.wz = 0.0f;
     }
@@ -406,9 +441,12 @@ static void RemoteControlSet()
     dbg_cmd_chassis_vy = chassis_cmd_send.vy;
     dbg_cmd_chassis_wz = chassis_cmd_send.wz;
     dbg_cmd_chassis_mode = (uint8_t)chassis_cmd_send.chassis_mode;
+    dbg_cmd_keep_front_hold_ticks = keep_front_idle_ticks;
+    dbg_cmd_keep_front_lock_active = keep_front_lock_active;
 }
 
 // Jeffrey070318增加：把左摇杆上下比例映射到pitch前/后目标，摇杆回中则回零点。
+#if !ROBOT_LOCK_PITCH_TARGET
 static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
 {
     // Jeffrey070318增加：pitch摇杆方向修正，PITCH_STICK_DIRECTION=-1时上下颠倒
@@ -442,13 +480,18 @@ static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
     return PITCH_REMOTE_ZERO_POS + (-ratio) * (PITCH_REMOTE_BACK_POS - PITCH_REMOTE_ZERO_POS);
 #endif
 }
+#endif
 
 // Jeffrey070318修改：左二开关专用于机械臂，保持原有接球控制语义；右一腾出给急停。
 static void RemoteControlSetArm(void)
 {
+#if ROBOT_LOCK_PITCH_TARGET
+    cmd_pitch_target_pos = ROBOT_LOCK_PITCH_TARGET_POS;
+#else
     cmd_pitch_target_pos = RemotePitchTargetFromJoystick(rc_data[TEMP].rc.rocker_l1);
+#endif
     cmd_pitch_speed = PITCH_REMOTE_SPEED;
-    // Jeffrey070318增加：缓存pitch遥控目标，确认左摇杆上下是否进入CMD并转换为目标位置。
+    // Jeffrey070318增加：缓存pitch目标，确认CMD下发位置是否符合当前调试策略。
     dbg_cmd_pitch_target_pos = cmd_pitch_target_pos;
     dbg_cmd_pitch_speed = cmd_pitch_speed;
 
@@ -580,7 +623,7 @@ void RobotCMDTask()
     OpticalFlowSetYaw(optical_flow, ins_imu_data->Yaw);
 #endif
 
-    // 读取光流模块累计位移数据,使用世界坐标系下的值
+    // 读取光流模块累计位移数据,使用世界坐标系下的值。
     flow_data = OpticalFlowGetData(optical_flow);
     if (flow_data != NULL && flow_data->updated)
     {

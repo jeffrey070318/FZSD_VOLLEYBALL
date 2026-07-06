@@ -71,6 +71,8 @@ volatile uint8_t dbg_chassis_mode = 0;
 volatile float dbg_chassis_recv_vx = 0.0f;
 volatile float dbg_chassis_recv_vy = 0.0f;
 volatile float dbg_chassis_recv_wz = 0.0f;
+volatile float dbg_chassis_recv_offset_angle = 0.0f;
+volatile float dbg_chassis_final_wz = 0.0f;
 volatile float dbg_chassis_vt_lf = 0.0f;
 volatile float dbg_chassis_vt_rf = 0.0f;
 volatile float dbg_chassis_vt_lb = 0.0f;
@@ -336,6 +338,7 @@ void ChassisTask()
         dbg_chassis_recv_vx = chassis_cmd_recv.vx;
         dbg_chassis_recv_vy = chassis_cmd_recv.vy;
         dbg_chassis_recv_wz = chassis_cmd_recv.wz;
+        dbg_chassis_recv_offset_angle = chassis_cmd_recv.offset_angle;
         dbg_chassis_mode = (uint8_t)chassis_cmd_recv.chassis_mode;
     }
 #endif
@@ -354,6 +357,7 @@ void ChassisTask()
         vt_rf = 0.0f;
         vt_lb = 0.0f;
         vt_rb = 0.0f;
+        dbg_chassis_final_wz = 0.0f;
         dbg_chassis_vt_lf = vt_lf;
         dbg_chassis_vt_rf = vt_rf;
         dbg_chassis_vt_lb = vt_lb;
@@ -403,6 +407,7 @@ void ChassisTask()
 
     // 记录本周期模式,供下周期检测模式切换(PID复位等)
     last_chassis_mode = chassis_cmd_recv.chassis_mode;
+    dbg_chassis_final_wz = chassis_cmd_recv.wz;
 
     // 没有云台，底盘前方就是正方向，遥控器输入直接映射
     // Jeffrey070318增加：底盘方向修正，正负由robot_def.h中CHASSIS_VX/VY_DIRECTION宏控制
