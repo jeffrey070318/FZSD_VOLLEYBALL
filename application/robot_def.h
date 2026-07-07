@@ -46,9 +46,8 @@
 // Jeffrey070318增加：CMD整车遥控入口开关，置1启用RobotCMDInit/RobotCMDTask，置0保留单模块直测。
 #define R2_DEBUG_ENABLE_CMD_APP 1
 
-// Jeffrey070318增加：临时锁定pitch轴，不再由遥控器左摇杆控制；恢复遥控时置0。
-#define ROBOT_LOCK_PITCH_TARGET 1
-#define ROBOT_LOCK_PITCH_TARGET_POS PITCH_REMOTE_BACK_POS
+// Jeffrey070318修改：pitch轴按模式控制。自动模式锁定到单独角度，手动模式由左拨杆下拉控制。
+#define ROBOT_AUTO_LOCK_PITCH_TARGET_POS PITCH_REMOTE_BACK_POS
 
 // Jeffrey070318修改：进入遥控器整车测试阶段，CMD接管底盘和机械臂，单模块直测默认关闭。
 #define R2_DEBUG_ENABLE_INS_TASK 1    // 1: 创建INS任务
@@ -116,6 +115,7 @@
 #define CHASSIS_R1_CURRENT_PID_KD 0.0f                      // R1底盘电流环D
 #define CHASSIS_R1_CURRENT_PID_INTEGRAL_LIMIT 3000.0f       // R1底盘电流环积分限幅
 #define CHASSIS_R1_CURRENT_PID_MAX_OUT 15000.0f             // R1底盘电流环输出限幅
+#define CHASSIS_R1_SPEED_FEEDFORWARD_KV 0.0f                // R1底盘速度目标到电流前馈的比例，默认0保持原逻辑。
 #define CHASSIS_R1_HEADING_PID_KP 70.0f                     // R1车头保持角度环P
 #define CHASSIS_R1_HEADING_PID_KI 1.5f                      // R1车头保持角度环I
 #define CHASSIS_R1_HEADING_PID_KD 120.0f                    // R1车头保持角度环D
@@ -227,6 +227,7 @@
 #define CHASSIS_R2_CURRENT_PID_KD 0.0f                      // R2底盘电流环D
 #define CHASSIS_R2_CURRENT_PID_INTEGRAL_LIMIT 3000.0f       // R2底盘电流环积分限幅
 #define CHASSIS_R2_CURRENT_PID_MAX_OUT 15000.0f             // R2底盘电流环输出限幅
+#define CHASSIS_R2_SPEED_FEEDFORWARD_KV 0.05f               // R2底盘速度目标到电流前馈的比例，调响应慢时从0逐步加。
 #define CHASSIS_R2_HEADING_PID_KP 70.0f                     // R2车头保持角度环P
 #define CHASSIS_R2_HEADING_PID_KI 1.5f                      // R2车头保持角度环I
 #define CHASSIS_R2_HEADING_PID_KD 120.0f                    // R2车头保持角度环D
@@ -239,17 +240,17 @@
 #define CHASSIS_R2_VY_DIRECTION 1                           // R2底盘Y方向符号, 1=正向 -1=反向
 
 /* R2 navigation and cmd */
-#define NAV_R2_MAX_SPEED 16000.0f             // R2导航速度上限，按YYP视觉坐标导航参数对齐。
-#define NAV_R2_SPEED_GAIN 60000.0f            // R2导航距离到速度的比例，按YYP视觉坐标导航参数对齐。
-#define NAV_R2_ARRIVAL_DIST 0.10f             // R2导航到点判定距离，按YYP视觉坐标导航参数对齐。
-#define R2_RIGHT2_FIXED_MOVE_TEST_Y 0.50f       // R2右二临时测试：按下后用光流固定向Y方向移动的距离(m)。
+#define NAV_R2_MAX_SPEED 16000.0f                // R2导航速度上限，按YYP视觉坐标导航参数对齐。
+#define NAV_R2_SPEED_GAIN 60000.0f               // R2导航距离到速度的比例，按YYP视觉坐标导航参数对齐。
+#define NAV_R2_ARRIVAL_DIST 0.10f                // R2导航到点判定距离，按YYP视觉坐标导航参数对齐。
+#define R2_RIGHT2_FIXED_MOVE_TEST_Y 0.50f        // R2右二临时测试：按下后用光流固定向Y方向移动的距离(m)。
 #define R2_RIGHT2_FIXED_MOVE_TEST_DEADBAND 0.02f // R2右二临时测试米制PID死区，避免复用视觉像素/误差死区。
-#define CMD_R2_REMOTE_MOVE_SCALE 30.0f        // R2遥控器平移摇杆比例
-#define CMD_R2_REMOTE_YAW_SCALE 4.0f          // R2遥控器旋转摇杆比例
-#define CMD_R2_REMOTE_YAW_MAX_WZ 1600.0f      // R2遥控器旋转二次曲线满杆输出上限，优先保证角度微调精度。
-#define CMD_R2_REMOTE_YAW_STICK_MAX 660.0f    // R2遥控器旋转摇杆满量程
-#define CMD_R2_REMOTE_DEADBAND 80             // R2遥控器摇杆死区
-#define CMD_R2_REMOTE_STOP_DIAL_THRESHOLD 300 // R2遥控器拨轮急停阈值
+#define CMD_R2_REMOTE_MOVE_SCALE 30.0f           // R2遥控器平移摇杆比例
+#define CMD_R2_REMOTE_YAW_SCALE 4.0f             // R2遥控器旋转摇杆比例
+#define CMD_R2_REMOTE_YAW_MAX_WZ 1600.0f         // R2遥控器旋转二次曲线满杆输出上限，优先保证角度微调精度。
+#define CMD_R2_REMOTE_YAW_STICK_MAX 660.0f       // R2遥控器旋转摇杆满量程
+#define CMD_R2_REMOTE_DEADBAND 80                // R2遥控器摇杆死区
+#define CMD_R2_REMOTE_STOP_DIAL_THRESHOLD 300    // R2遥控器拨轮急停阈值
 
 // 最终挑战
 #define VISION_R2_MODE VISION_MODE_COORDINATE // Jeffrey070318增加：R2视觉模式，坐标模式/偏移模式二选一。
@@ -263,7 +264,18 @@
 #define VISION_R2_PID_Y_MAXOUT 20000.0f       // Jeffrey070318增加：R2视觉偏移模式Y轴速度输出限幅。
 #define VISION_R2_PID_DEADBAND 2.0f           // Jeffrey070318增加：R2视觉偏移PID死区，过滤小像素误差。
 #define VISION_R2_PID_INTEGRAL_RATIO 0.3f     // Jeffrey070318增加：R2视觉偏移PID积分限幅相对MaxOut的比例。
-#define VISION_R2_SERVE_TRIGGER_DELAY_MS 80u  // R2视觉flag=1后延迟触发机械臂，便于调击球时机。
+#define VISION_R2_SERVE_TRIGGER_DELAY_MS 0u   // R2视觉flag=1后延迟触发机械臂，便于调击球时机。
+#define VISION_R2_SERVE_HOLD_MS 300u          // R2视觉触发后强制保持抬升时间，避免flag过早归0导致未到最高点就回收。
+// IMPORTANT: 临时实测参数。cmd=1误差模式丢目标(target_x/y=0)后的速度衰减周期，过大会拖行，过小会急停抖动。
+#define VISION_R2_OFFSET_LOST_DECAY_TICKS 50u
+// 自动模式下看到球后，逐步降低遥控平移叠加量，避免人工输入把球带出视野。
+#define VISION_R2_REMOTE_BLEND_MIN_GAIN 0.30f
+#define VISION_R2_REMOTE_BLEND_DECAY_MS 500u
+#define VISION_R2_REMOTE_BLEND_RECOVER_MS 300u
+// IMPORTANT: 临时原地测试开关。置1时左一自动模式下底盘vx/vy/wz锁为0，只保留视觉flag控制机械臂。
+#define R2_AUTO_MODE_CHASSIS_LOCK_TEST 0u
+// IMPORTANT: 临时机械臂测试开关。置1时自动模式忽略视觉flag，机械臂保持READY；手动左二仍可单独测试机械臂。
+#define R2_AUTO_MODE_ARM_DISABLE_TEST 1u
 
 #define OPTICAL_FLOW_R2_PROTOCOL OPTICAL_FLOW_UPIXELS_NO_TOF // Jeffrey070318增加：R2光流协议，学长版使用无TOF帧。
 #define OPTICAL_FLOW_R2_SCALE_X OPTICAL_FLOW_DEFAULT_SCALE   // Jeffrey070318增加：R2光流传感器X轴角位移缩放。
@@ -307,8 +319,8 @@
 #define PITCH_R2_REMOTE_BACK_POS PITCH_R2_TEST_BACK_POS   // Jeffrey070318增加：R2左摇杆下拉对应的pitch背向目标。
 #define PITCH_R2_REMOTE_SPEED PITCH_R2_TEST_SPEED         // Jeffrey070318增加：R2遥控器控制pitch的位置速度模式速度。
 #define PITCH_R2_REMOTE_STICK_MAX 660.0f                  // Jeffrey070318增加：R2遥控器pitch摇杆满量程，用于比例映射。
-#define PITCH_R2_STICK_DIRECTION -1                       // Jeffrey070318增加：R2 pitch摇杆方向, 1=上推前倾 -1=上推后仰
-#define PITCH_R2_REMOTE_MODE 1                            // Jeffrey070318增加：R2 pitch摇杆映射模式, 0=原逻辑(中心=零点) 1=中心=最前点
+#define PITCH_R2_STICK_DIRECTION -1                       // R2 pitch摇杆方向, 配合Mode1使下拉从BACK(-0.74)走到ZERO(0.0)。
+#define PITCH_R2_REMOTE_MODE 1                            // R2 pitch摇杆映射模式, 1=中心BACK, 下拉到ZERO, 上推无功能。
 #define DELTA_R2_ORIGINAL_POS 0.0f                        // R2击球机构初始目标位置
 #define DELTA_R2_HIT_1_POS 0.70f                          // Jeffrey070318修改：R2右开关机械臂发出目标改为实测最高点位置。
 #define DELTA_R2_BACK_POS 0.0f                            // R2击球机构回收目标位置
@@ -450,6 +462,7 @@
 #define CHASSIS_CURRENT_PID_KD CHASSIS_R2_CURRENT_PID_KD                               // 业务代码使用的电流环D
 #define CHASSIS_CURRENT_PID_INTEGRAL_LIMIT CHASSIS_R2_CURRENT_PID_INTEGRAL_LIMIT       // 业务代码使用的电流环积分限幅
 #define CHASSIS_CURRENT_PID_MAX_OUT CHASSIS_R2_CURRENT_PID_MAX_OUT                     // 业务代码使用的电流环输出限幅
+#define CHASSIS_SPEED_FEEDFORWARD_KV CHASSIS_R2_SPEED_FEEDFORWARD_KV                   // 业务代码使用的底盘速度目标电流前馈比例
 #define CHASSIS_HEADING_PID_KP CHASSIS_R2_HEADING_PID_KP                               // 业务代码使用的车头角度环P
 #define CHASSIS_HEADING_PID_KI CHASSIS_R2_HEADING_PID_KI                               // 业务代码使用的车头角度环I
 #define CHASSIS_HEADING_PID_KD CHASSIS_R2_HEADING_PID_KD                               // 业务代码使用的车头角度环D
@@ -483,6 +496,13 @@
 #define VISION_PID_DEADBAND VISION_R2_PID_DEADBAND                                     // Jeffrey070318增加：业务代码使用的视觉PID死区。
 #define VISION_PID_INTEGRAL_RATIO VISION_R2_PID_INTEGRAL_RATIO                         // Jeffrey070318增加：业务代码使用的视觉PID积分限幅比例。
 #define VISION_SERVE_TRIGGER_DELAY_MS VISION_R2_SERVE_TRIGGER_DELAY_MS                 // Jeffrey070318增加：业务代码使用的视觉触发机械臂延迟。
+#define VISION_SERVE_HOLD_MS VISION_R2_SERVE_HOLD_MS                                   // 业务代码使用的视觉触发后机械臂强制抬升保持时间
+#define VISION_OFFSET_LOST_DECAY_TICKS VISION_R2_OFFSET_LOST_DECAY_TICKS               // Jeffrey070318增加：业务代码使用的误差模式丢目标衰减周期。
+#define VISION_REMOTE_BLEND_MIN_GAIN VISION_R2_REMOTE_BLEND_MIN_GAIN                   // 自动模式看到球后遥控平移叠加最小增益
+#define VISION_REMOTE_BLEND_DECAY_MS VISION_R2_REMOTE_BLEND_DECAY_MS                   // 自动模式看到球后遥控平移增益下降时间
+#define VISION_REMOTE_BLEND_RECOVER_MS VISION_R2_REMOTE_BLEND_RECOVER_MS               // 自动模式未看到球时遥控平移增益恢复时间
+#define AUTO_MODE_CHASSIS_LOCK_TEST R2_AUTO_MODE_CHASSIS_LOCK_TEST                     // 临时原地测试: 自动模式锁定底盘
+#define AUTO_MODE_ARM_DISABLE_TEST R2_AUTO_MODE_ARM_DISABLE_TEST                       // 临时测试: 自动模式禁用视觉触发机械臂
 #define OPTICAL_FLOW_PROTOCOL OPTICAL_FLOW_R2_PROTOCOL                                 // Jeffrey070318增加：业务代码使用的光流协议。
 #define OPTICAL_FLOW_SCALE_X OPTICAL_FLOW_R2_SCALE_X                                   // Jeffrey070318增加：业务代码使用的光流X轴缩放。
 #define OPTICAL_FLOW_SCALE_Y OPTICAL_FLOW_R2_SCALE_Y                                   // Jeffrey070318增加：业务代码使用的光流Y轴缩放。
@@ -523,6 +543,7 @@
 #define PITCH_REMOTE_STICK_MAX PITCH_R2_REMOTE_STICK_MAX                               // Jeffrey070318增加：业务代码使用的pitch摇杆满量程
 #define PITCH_STICK_DIRECTION PITCH_R2_STICK_DIRECTION                                 // Jeffrey070318增加：业务代码使用的pitch摇杆方向
 #define PITCH_REMOTE_MODE PITCH_R2_REMOTE_MODE                                         // Jeffrey070318增加：业务代码使用的pitch摇杆映射模式
+#define ROBOT_AUTO_PITCH_TARGET_POS ROBOT_AUTO_LOCK_PITCH_TARGET_POS                   // 自动模式锁定pitch目标角度
 #define DELTA_ORIGINAL_TARGET_POS DELTA_R2_ORIGINAL_POS                                // 业务代码使用的击球机构初始位置
 #define DELTA_HIT_1_TARGET_POS DELTA_R2_HIT_1_POS                                      // 业务代码使用的击球目标位置
 #define DELTA_BACK_TARGET_POS DELTA_R2_BACK_POS                                        // 业务代码使用的回收目标位置

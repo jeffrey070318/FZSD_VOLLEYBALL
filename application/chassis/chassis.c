@@ -26,6 +26,8 @@
 #if ROBOT_ENABLE_VOFA_CHASSIS_DEBUG
 #include "vofa.h"
 #include "usart.h"
+extern volatile float dbg_cmd_vision_target_x;
+extern volatile float dbg_cmd_vision_target_y;
 #endif
 
 /* 根据robot_def.h中的macro自动计算的参数 */
@@ -59,6 +61,7 @@ static DJIMotorInstance *motor_lf, *motor_rf, *motor_lb, *motor_rb; // left righ
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
 static float vt_lf, vt_rf, vt_lb, vt_rb; // 底盘速度解算后的临时输出,待进行限幅
+static float chassis_ff_current_lf, chassis_ff_current_rf, chassis_ff_current_lb, chassis_ff_current_rb;
 
 static PIDInstance heading_pid;                               // 前向保持PID实例
 static PID_Init_Config_s heading_pid_config;                  // PID配置(文件级存储,供模式切入时重新初始化)
@@ -122,7 +125,7 @@ static void ChassisUpdateMotorDebug()
 static void ChassisVofaSendDebug()
 {
     static uint16_t vofa_divider = 0;
-    float vofa_data[15];
+    float vofa_data[17];
 
     vofa_divider++;
     if (vofa_divider < ROBOT_VOFA_CHASSIS_DEBUG_DIVIDER)
@@ -144,8 +147,10 @@ static void ChassisVofaSendDebug()
     vofa_data[12] = (float)dbg_chassis_fb_current_rf;
     vofa_data[13] = (float)dbg_chassis_fb_current_lb;
     vofa_data[14] = (float)dbg_chassis_fb_current_rb;
+    vofa_data[15] = dbg_cmd_vision_target_x;
+    vofa_data[16] = dbg_cmd_vision_target_y;
 
-    (void)vofa_justfloat_output_dma(vofa_data, 15u, &huart7);
+    (void)vofa_justfloat_output_dma(vofa_data, 17u, &huart7);
 }
 #endif
 
@@ -173,12 +178,14 @@ void ChassisInit()
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
                 .MaxOut = CHASSIS_CURRENT_PID_MAX_OUT,
             },
+            .current_feedforward_ptr = &chassis_ff_current_lf,
         },
         .controller_setting_init_config = {
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = SPEED_LOOP,
             .close_loop_type = SPEED_LOOP | CURRENT_LOOP,
+            .feedforward_flag = CURRENT_FEEDFORWARD,
         },
         // Jeffrey070318修改：底盘电机型号改走robot_def.h，R1/R2可独立配置。
         .motor_type = CHASSIS_MOTOR_TYPE,
@@ -192,16 +199,19 @@ void ChassisInit()
     // Jeffrey070318修改：右前轮ID和方向改走robot_def.h。
     chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_RF_ID;
     chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_RF_REVERSE;
+    chassis_motor_config.controller_param_init_config.current_feedforward_ptr = &chassis_ff_current_rf;
     motor_rf = DJIMotorInit(&chassis_motor_config);
 
     // Jeffrey070318修改：左后轮ID和方向改走robot_def.h。
     chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_LB_ID;
     chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_LB_REVERSE;
+    chassis_motor_config.controller_param_init_config.current_feedforward_ptr = &chassis_ff_current_lb;
     motor_lb = DJIMotorInit(&chassis_motor_config);
 
     // Jeffrey070318修改：右后轮ID和方向改走robot_def.h。
     chassis_motor_config.can_init_config.tx_id = CHASSIS_MOTOR_RB_ID;
     chassis_motor_config.controller_setting_init_config.motor_reverse_flag = CHASSIS_MOTOR_RB_REVERSE;
+    chassis_motor_config.controller_param_init_config.current_feedforward_ptr = &chassis_ff_current_rb;
     motor_rb = DJIMotorInit(&chassis_motor_config);
 
     //    referee_data = UITaskInit(&huart1,&ui_data); // 裁判系统初始化,会同时初始化UI
@@ -308,6 +318,10 @@ static void LimitChassisOutput()
     // referee_data->PowerHeatData.chassis_power_buffer;
 
     // 完成功率限制后进行电机参考输入设定
+    chassis_ff_current_lf = CHASSIS_SPEED_FEEDFORWARD_KV * vt_lf * ((CHASSIS_MOTOR_LF_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
+    chassis_ff_current_rf = CHASSIS_SPEED_FEEDFORWARD_KV * vt_rf * ((CHASSIS_MOTOR_RF_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
+    chassis_ff_current_lb = CHASSIS_SPEED_FEEDFORWARD_KV * vt_lb * ((CHASSIS_MOTOR_LB_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
+    chassis_ff_current_rb = CHASSIS_SPEED_FEEDFORWARD_KV * vt_rb * ((CHASSIS_MOTOR_RB_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
     DJIMotorSetRef(motor_lf, vt_lf);
     DJIMotorSetRef(motor_rf, vt_rf);
     DJIMotorSetRef(motor_lb, vt_lb);

@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 0 | header | uint8 | `0xAA` |
 | 1 | cmd | uint8 | `0` = 坐标模式, `1` = 误差模式 |
-| 2-3 | len | uint16 | 数据长度 (固定 `17`) |
+| 2-3 | len | uint16 | 数据内容长度 (固定 `16`) |
 | 4-7 | target_x | float32 | 目标 X (**模式相关**) |
 | 8-11 | target_y | float32 | 目标 Y (**模式相关**) |
 | 12 | flag | uint8 | 算法标志位，只发送 `0` 或 `1` |
@@ -61,6 +61,8 @@ vy = PID(−target_y, 0)
 
 3. 模式切换时: 自动清零 PID 积分 + 速度归零
 
+4. IMPORTANT: 当 `target_x == 0 && target_y == 0` 时，下位机会认为误差模式暂时丢目标，并按 `VISION_OFFSET_LOST_DECAY_TICKS` 对上一速度做衰减后停车。该值当前是临时实测参数，过大会拖行，过小会急停/抖动，需要联调确认。
+
 ---
 
 ## 模式切换
@@ -86,11 +88,12 @@ vy = PID(−target_y, 0)
 
 | 参数 | 值 |
 |---|---|
-| NAV_MAX_SPEED | 14000 |
-| NAV_SPEED_GAIN | 40000 |
+| NAV_MAX_SPEED | R2当前为16000 |
+| NAV_SPEED_GAIN | R2当前为60000 |
 | NAV_ARRIVAL_DIST | 0.10 m |
-| PID X Kp / Ki / Kd | 0.5 / 0.01 / 0.0 |
-| PID Y Kp / Ki / Kd | 0.5 / 0.01 / 0.0 |
+| PID X Kp / Ki / Kd | R2当前为120 / 0.5 / 30 |
+| PID Y Kp / Ki / Kd | R2当前为100 / 0.5 / 45 |
+| VISION_OFFSET_LOST_DECAY_TICKS | R2当前临时值50，需实测确认 |
 
 ---
 

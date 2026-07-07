@@ -62,7 +62,9 @@ static Vision_Recv_s *vision_recv_data;   // 视觉接收数据指针,初始化�
 // Jeffrey070318增加：视觉相机启用时才保留发送缓存，未接相机时避免无用视觉链路。
 static Vision_Send_s vision_send_data; // 视觉发送数据
 static uint8_t vision_serve_pending = 0;
+static uint8_t vision_serve_holding = 0;
 static uint32_t vision_serve_trigger_tick = 0;
+static uint32_t vision_serve_hold_start_tick = 0;
 #endif
 
 // Jeffrey070318增加：cmd层使用中性的Delta动作缓存，R1/R2分别在小函数内映射输入来源。
@@ -109,7 +111,14 @@ volatile float dbg_cmd_pitch_target_pos = 0.0f; // Jeffrey070318增加：LiveWat
 volatile float dbg_cmd_pitch_speed = 0.0f;      // Jeffrey070318增加：LiveWatch查看CMD下发给pitch的位置速度模式速度。
 volatile uint8_t dbg_cmd_vision_flag = 0;
 volatile uint8_t dbg_cmd_vision_serve_pending = 0;
+volatile uint8_t dbg_cmd_vision_serve_holding = 0;
 volatile uint32_t dbg_cmd_vision_serve_elapsed_ms = 0;
+volatile uint32_t dbg_cmd_vision_serve_hold_elapsed_ms = 0;
+volatile float dbg_cmd_vision_target_x = 0.0f;
+volatile float dbg_cmd_vision_target_y = 0.0f;
+volatile uint8_t dbg_cmd_vision_target_seen = 0;
+volatile float dbg_cmd_auto_remote_gain = 1.0f;
+volatile uint8_t dbg_cmd_auto_chassis_lock = 0;
 
 // static Publisher_t *gimbal_cmd_pub;            // 云台控制消息发布者
 // static Subscriber_t *gimbal_feed_sub;          // 云台反馈信息订阅者
@@ -359,14 +368,16 @@ static void AutoNavigation(void)
         if (vision_recv_data->target_x == 0.0f && vision_recv_data->target_y == 0.0f)
         {
             offset_invalid_cnt++;
-            if (offset_invalid_cnt >= 200u)
+            // IMPORTANT: 这是cmd=1近距离视觉精修的临时丢目标衰减策略，需要根据实车确认。
+            // 设太大: 视觉丢球后底盘继续拖行；设太小: 偶发空帧会导致急停/抖动。
+            if (offset_invalid_cnt >= VISION_OFFSET_LOST_DECAY_TICKS)
             {
                 chassis_cmd_send.vx = 0.0f;
                 chassis_cmd_send.vy = 0.0f;
             }
             else
             {
-                float decay = 1.0f - (float)offset_invalid_cnt / 200.0f;
+                float decay = 1.0f - (float)offset_invalid_cnt / (float)VISION_OFFSET_LOST_DECAY_TICKS;
                 chassis_cmd_send.vx *= decay;
                 chassis_cmd_send.vy *= decay;
             }
@@ -467,6 +478,8 @@ static void RemoteControlSet()
 {
     static uint8_t keep_front_lock_active = 0;
     static uint16_t keep_front_idle_ticks = 0;
+    static float auto_remote_gain = 1.0f;
+    static uint32_t auto_remote_gain_last_tick = 0;
 
     // Jeffrey070318增加：缓存CMD看到的遥控器原始值，判断rc_data指针是否正常更新。
     dbg_cmd_rocker_r_ = rc_data[TEMP].rc.rocker_r_;
@@ -484,10 +497,25 @@ static void RemoteControlSet()
     const int move_y_active = abs(rc_data[TEMP].rc.rocker_r1) > CMD_REMOTE_DEADBAND;
     const int yaw_active = abs(rc_data[TEMP].rc.rocker_l_) > CMD_REMOTE_DEADBAND;
     const int auto_mode = switch_is_down(rc_data[TEMP].rc.switch_left1);
+    const int auto_chassis_locked = auto_mode && AUTO_MODE_CHASSIS_LOCK_TEST;
+    dbg_cmd_auto_chassis_lock = auto_chassis_locked ? 1u : 0u;
+    uint32_t now = HAL_GetTick();
+    uint32_t dt_ms = (auto_remote_gain_last_tick == 0u) ? 0u : (now - auto_remote_gain_last_tick);
+    auto_remote_gain_last_tick = now;
 
     if (auto_mode)
     {
-        if (switch_is_down(rc_data[TEMP].rc.switch_right2))
+        if (auto_chassis_locked)
+        {
+            right2_fixed_move_active = 0;
+            dbg_cmd_right2_test_active = 0;
+            dbg_cmd_vision_target_seen = 0;
+            auto_remote_gain = 1.0f;
+            dbg_cmd_auto_remote_gain = auto_remote_gain;
+            chassis_cmd_send.vx = 0.0f;
+            chassis_cmd_send.vy = 0.0f;
+        }
+        else if (switch_is_down(rc_data[TEMP].rc.switch_right2))
         {
             Right2FixedMoveTest();
         }
@@ -495,11 +523,51 @@ static void RemoteControlSet()
         {
             right2_fixed_move_active = 0;
             dbg_cmd_right2_test_active = 0;
+            uint8_t vision_target_seen = 0;
+#if ROBOT_ENABLE_VISION
+            vision_target_seen = (VisionIsOnline() && vision_recv_data != NULL &&
+                                  vision_recv_data->cmd == CMD_OFFSET &&
+                                  (vision_recv_data->target_x != 0.0f || vision_recv_data->target_y != 0.0f));
+            if (VisionIsOnline() && vision_recv_data != NULL)
+            {
+                dbg_cmd_vision_target_x = vision_recv_data->target_x;
+                dbg_cmd_vision_target_y = vision_recv_data->target_y;
+            }
+#endif
+            if (vision_target_seen)
+            {
+                float decay_ms = (float)VISION_REMOTE_BLEND_DECAY_MS;
+                float delta = (decay_ms > 0.0f) ? ((1.0f - VISION_REMOTE_BLEND_MIN_GAIN) * (float)dt_ms / decay_ms)
+                                                : (1.0f - VISION_REMOTE_BLEND_MIN_GAIN);
+                auto_remote_gain -= delta;
+                if (auto_remote_gain < VISION_REMOTE_BLEND_MIN_GAIN)
+                    auto_remote_gain = VISION_REMOTE_BLEND_MIN_GAIN;
+            }
+            else
+            {
+                float recover_ms = (float)VISION_REMOTE_BLEND_RECOVER_MS;
+                float delta = (recover_ms > 0.0f) ? ((1.0f - VISION_REMOTE_BLEND_MIN_GAIN) * (float)dt_ms / recover_ms)
+                                                  : (1.0f - VISION_REMOTE_BLEND_MIN_GAIN);
+                auto_remote_gain += delta;
+                if (auto_remote_gain > 1.0f)
+                    auto_remote_gain = 1.0f;
+            }
+            dbg_cmd_vision_target_seen = vision_target_seen;
+            dbg_cmd_auto_remote_gain = auto_remote_gain;
+
+            float remote_vx = move_x_active ? CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r_ * auto_remote_gain : 0.0f;
+            float remote_vy = move_y_active ? CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r1 * auto_remote_gain : 0.0f;
+            // 自动模式下视觉误差修正与遥控平移叠加: 人负责靠近，视觉同时做最后对准。
             AutoNavigation();
+            chassis_cmd_send.vx += remote_vx;
+            chassis_cmd_send.vy += remote_vy;
         }
     }
     else
     {
+        auto_remote_gain = 1.0f;
+        dbg_cmd_vision_target_seen = 0;
+        dbg_cmd_auto_remote_gain = auto_remote_gain;
         if (move_x_active)
             chassis_cmd_send.vx = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r_;
         else
@@ -513,7 +581,16 @@ static void RemoteControlSet()
 
     const int chassis_translate_active = auto_mode ? (chassis_cmd_send.vx != 0.0f || chassis_cmd_send.vy != 0.0f)
                                                    : (move_x_active || move_y_active);
-    if (yaw_active)
+    if (auto_chassis_locked)
+    {
+        keep_front_lock_active = 1;
+        keep_front_idle_ticks = 0;
+        chassis_cmd_send.chassis_mode = CHASSIS_KEEP_FRONT;
+        chassis_cmd_send.vx = 0.0f;
+        chassis_cmd_send.vy = 0.0f;
+        chassis_cmd_send.wz = 0.0f;
+    }
+    else if (yaw_active)
     {
         keep_front_lock_active = 0;
         keep_front_idle_ticks = 0;
@@ -548,8 +625,7 @@ static void RemoteControlSet()
     dbg_cmd_keep_front_lock_active = keep_front_lock_active;
 }
 
-// Jeffrey070318增加：把左摇杆上下比例映射到pitch前/后目标，摇杆回中则回零点。
-#if !ROBOT_LOCK_PITCH_TARGET
+// Jeffrey070318增加：把左摇杆上下比例映射到pitch目标。
 static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
 {
     // Jeffrey070318增加：pitch摇杆方向修正，PITCH_STICK_DIRECTION=-1时上下颠倒
@@ -583,16 +659,14 @@ static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
     return PITCH_REMOTE_ZERO_POS + (-ratio) * (PITCH_REMOTE_BACK_POS - PITCH_REMOTE_ZERO_POS);
 #endif
 }
-#endif
 
 // Jeffrey070318修改：手动模式左二控制机械臂；自动模式下机械臂只接受视觉flag，不再响应遥控左二。
 static void RemoteControlSetArm(void)
 {
-#if ROBOT_LOCK_PITCH_TARGET
-    cmd_pitch_target_pos = ROBOT_LOCK_PITCH_TARGET_POS;
-#else
-    cmd_pitch_target_pos = RemotePitchTargetFromJoystick(rc_data[TEMP].rc.rocker_l1);
-#endif
+    if (switch_is_down(rc_data[TEMP].rc.switch_left1))
+        cmd_pitch_target_pos = ROBOT_AUTO_PITCH_TARGET_POS;
+    else
+        cmd_pitch_target_pos = RemotePitchTargetFromJoystick(rc_data[TEMP].rc.rocker_l1);
     cmd_pitch_speed = PITCH_REMOTE_SPEED;
     // Jeffrey070318增加：缓存pitch目标，确认CMD下发位置是否符合当前调试策略。
     dbg_cmd_pitch_target_pos = cmd_pitch_target_pos;
@@ -601,12 +675,35 @@ static void RemoteControlSetArm(void)
     if (switch_is_down(rc_data[TEMP].rc.switch_left1))
     {
 #if ROBOT_ENABLE_VISION
-        uint8_t vision_flag = (VisionIsOnline() && vision_recv_data != NULL) ? vision_recv_data->flag : 0u;
+        uint8_t vision_flag = (!AUTO_MODE_ARM_DISABLE_TEST && VisionIsOnline() && vision_recv_data != NULL) ? vision_recv_data->flag : 0u;
         dbg_cmd_vision_flag = vision_flag;
+        uint32_t now = HAL_GetTick();
 
-        if (vision_flag == 1u)
+        if (AUTO_MODE_ARM_DISABLE_TEST)
         {
-            uint32_t now = HAL_GetTick();
+            vision_serve_pending = 0;
+            vision_serve_holding = 0;
+            dbg_cmd_vision_serve_elapsed_ms = 0;
+            dbg_cmd_vision_serve_hold_elapsed_ms = 0;
+            cmd_delta_action = DELTA_READY;
+        }
+        else if (vision_serve_holding)
+        {
+            dbg_cmd_vision_serve_hold_elapsed_ms = now - vision_serve_hold_start_tick;
+            if (dbg_cmd_vision_serve_hold_elapsed_ms < VISION_SERVE_HOLD_MS)
+            {
+                cmd_delta_action = DELTA_SERVE;
+            }
+            else
+            {
+                vision_serve_holding = 0;
+                vision_serve_pending = 0;
+                dbg_cmd_vision_serve_hold_elapsed_ms = 0;
+                cmd_delta_action = DELTA_READY;
+            }
+        }
+        else if (vision_flag == 1u)
+        {
             if (!vision_serve_pending)
             {
                 vision_serve_pending = 1;
@@ -615,9 +712,16 @@ static void RemoteControlSetArm(void)
 
             dbg_cmd_vision_serve_elapsed_ms = now - vision_serve_trigger_tick;
             if (dbg_cmd_vision_serve_elapsed_ms >= VISION_SERVE_TRIGGER_DELAY_MS)
+            {
+                vision_serve_holding = 1;
+                vision_serve_hold_start_tick = now;
+                dbg_cmd_vision_serve_hold_elapsed_ms = 0;
                 cmd_delta_action = DELTA_SERVE;
+            }
             else
+            {
                 cmd_delta_action = DELTA_READY;
+            }
         }
         else
         {
@@ -626,6 +730,7 @@ static void RemoteControlSetArm(void)
             cmd_delta_action = DELTA_READY;
         }
         dbg_cmd_vision_serve_pending = vision_serve_pending;
+        dbg_cmd_vision_serve_holding = vision_serve_holding;
 #else
         cmd_delta_action = DELTA_READY;
 #endif
@@ -634,9 +739,14 @@ static void RemoteControlSetArm(void)
     {
 #if ROBOT_ENABLE_VISION
         vision_serve_pending = 0;
+        vision_serve_holding = 0;
         dbg_cmd_vision_flag = 0;
         dbg_cmd_vision_serve_pending = 0;
+        dbg_cmd_vision_serve_holding = 0;
         dbg_cmd_vision_serve_elapsed_ms = 0;
+        dbg_cmd_vision_serve_hold_elapsed_ms = 0;
+        dbg_cmd_vision_target_x = 0.0f;
+        dbg_cmd_vision_target_y = 0.0f;
 #endif
         cmd_delta_action = DELTA_HIT;
     }
@@ -644,9 +754,14 @@ static void RemoteControlSetArm(void)
     {
 #if ROBOT_ENABLE_VISION
         vision_serve_pending = 0;
+        vision_serve_holding = 0;
         dbg_cmd_vision_flag = 0;
         dbg_cmd_vision_serve_pending = 0;
+        dbg_cmd_vision_serve_holding = 0;
         dbg_cmd_vision_serve_elapsed_ms = 0;
+        dbg_cmd_vision_serve_hold_elapsed_ms = 0;
+        dbg_cmd_vision_target_x = 0.0f;
+        dbg_cmd_vision_target_y = 0.0f;
 #endif
         cmd_delta_action = DELTA_READY;
     }
@@ -680,9 +795,14 @@ static void RemoteOfflineStop(void)
     dbg_cmd_pitch_speed = cmd_pitch_speed;
 #if ROBOT_ENABLE_VISION
     vision_serve_pending = 0;
+    vision_serve_holding = 0;
     dbg_cmd_vision_flag = 0;
     dbg_cmd_vision_serve_pending = 0;
+    dbg_cmd_vision_serve_holding = 0;
     dbg_cmd_vision_serve_elapsed_ms = 0;
+    dbg_cmd_vision_serve_hold_elapsed_ms = 0;
+    dbg_cmd_vision_target_x = 0.0f;
+    dbg_cmd_vision_target_y = 0.0f;
 #endif
 }
 
