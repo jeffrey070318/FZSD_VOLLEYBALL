@@ -3632,7 +3632,8 @@ static void prvInitialiseTaskLists(void)
 	pxDelayedTaskList = &xDelayedTaskList1;
 	pxOverflowDelayedTaskList = &xDelayedTaskList2;
 }
-/*-----------------------------------------------------------*/
+/*--------------------------------------
+---------------------*/
 
 static void prvCheckTasksWaitingTermination(void)
 {

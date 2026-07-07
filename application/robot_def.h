@@ -218,7 +218,7 @@
 #define CHASSIS_R2_MOTOR_LB_REVERSE MOTOR_DIRECTION_REVERSE // R2左后轮电机方向
 #define CHASSIS_R2_MOTOR_RB_REVERSE MOTOR_DIRECTION_REVERSE // R2右后轮电机方向
 #define CHASSIS_R2_SPEED_PID_KP 10.0f                       // R2底盘速度环P
-#define CHASSIS_R2_SPEED_PID_KI 0.0f                        // R2底盘速度环I
+#define CHASSIS_R2_SPEED_PID_KI 0.1f                        // R2底盘速度环I
 #define CHASSIS_R2_SPEED_PID_KD 0.0f                        // R2底盘速度环D
 #define CHASSIS_R2_SPEED_PID_INTEGRAL_LIMIT 3000.0f         // R2底盘速度环积分限幅
 #define CHASSIS_R2_SPEED_PID_MAX_OUT 12000.0f               // R2底盘速度环输出限幅
@@ -242,6 +242,8 @@
 #define NAV_R2_MAX_SPEED 16000.0f             // R2导航速度上限，按YYP视觉坐标导航参数对齐。
 #define NAV_R2_SPEED_GAIN 60000.0f            // R2导航距离到速度的比例，按YYP视觉坐标导航参数对齐。
 #define NAV_R2_ARRIVAL_DIST 0.10f             // R2导航到点判定距离，按YYP视觉坐标导航参数对齐。
+#define R2_RIGHT2_FIXED_MOVE_TEST_Y 0.50f       // R2右二临时测试：按下后用光流固定向Y方向移动的距离(m)。
+#define R2_RIGHT2_FIXED_MOVE_TEST_DEADBAND 0.02f // R2右二临时测试米制PID死区，避免复用视觉像素/误差死区。
 #define CMD_R2_REMOTE_MOVE_SCALE 30.0f        // R2遥控器平移摇杆比例
 #define CMD_R2_REMOTE_YAW_SCALE 4.0f          // R2遥控器旋转摇杆比例
 #define CMD_R2_REMOTE_YAW_MAX_WZ 1600.0f      // R2遥控器旋转二次曲线满杆输出上限，优先保证角度微调精度。
@@ -251,16 +253,17 @@
 
 // 最终挑战
 #define VISION_R2_MODE VISION_MODE_COORDINATE // Jeffrey070318增加：R2视觉模式，坐标模式/偏移模式二选一。
-#define VISION_R2_PID_X_KP 100.0f             // Jeffrey070318增加：R2视觉偏移模式X轴PID比例系数。
+#define VISION_R2_PID_X_KP 120.0f             // Jeffrey070318增加：R2视觉偏移模式X轴PID比例系数。
 #define VISION_R2_PID_X_KI 0.5f               // Jeffrey070318增加：R2视觉偏移模式X轴PID积分系数。
 #define VISION_R2_PID_X_KD 30.0f              // Jeffrey070318增加：R2视觉偏移模式X轴PID微分系数。
 #define VISION_R2_PID_X_MAXOUT 25000.0f       // Jeffrey070318增加：R2视觉偏移模式X轴速度输出限幅。
-#define VISION_R2_PID_Y_KP 120.0f             // Jeffrey070318增加：R2视觉偏移模式Y轴PID比例系数。
+#define VISION_R2_PID_Y_KP 100.0f             // Jeffrey070318增加：R2视觉偏移模式Y轴PID比例系数。
 #define VISION_R2_PID_Y_KI 0.5f               // Jeffrey070318增加：R2视觉偏移模式Y轴PID积分系数。
 #define VISION_R2_PID_Y_KD 45.0f              // Jeffrey070318增加：R2视觉偏移模式Y轴PID微分系数。
 #define VISION_R2_PID_Y_MAXOUT 20000.0f       // Jeffrey070318增加：R2视觉偏移模式Y轴速度输出限幅。
 #define VISION_R2_PID_DEADBAND 2.0f           // Jeffrey070318增加：R2视觉偏移PID死区，过滤小像素误差。
 #define VISION_R2_PID_INTEGRAL_RATIO 0.3f     // Jeffrey070318增加：R2视觉偏移PID积分限幅相对MaxOut的比例。
+#define VISION_R2_SERVE_TRIGGER_DELAY_MS 80u  // R2视觉flag=1后延迟触发机械臂，便于调击球时机。
 
 #define OPTICAL_FLOW_R2_PROTOCOL OPTICAL_FLOW_UPIXELS_NO_TOF // Jeffrey070318增加：R2光流协议，学长版使用无TOF帧。
 #define OPTICAL_FLOW_R2_SCALE_X OPTICAL_FLOW_DEFAULT_SCALE   // Jeffrey070318增加：R2光流传感器X轴角位移缩放。
@@ -460,6 +463,8 @@
 #define NAV_MAX_SPEED NAV_R2_MAX_SPEED                                                 // 业务代码使用的导航速度上限
 #define NAV_SPEED_GAIN NAV_R2_SPEED_GAIN                                               // 业务代码使用的导航速度比例
 #define NAV_ARRIVAL_DIST NAV_R2_ARRIVAL_DIST                                           // 业务代码使用的导航到点距离
+#define RIGHT2_FIXED_MOVE_TEST_Y R2_RIGHT2_FIXED_MOVE_TEST_Y                           // 业务代码使用的右二固定距离测试Y位移
+#define RIGHT2_FIXED_MOVE_TEST_DEADBAND R2_RIGHT2_FIXED_MOVE_TEST_DEADBAND             // 业务代码使用的右二固定距离测试米制PID死区
 #define CMD_REMOTE_MOVE_SCALE CMD_R2_REMOTE_MOVE_SCALE                                 // 业务代码使用的遥控平移比例
 #define CMD_REMOTE_YAW_SCALE CMD_R2_REMOTE_YAW_SCALE                                   // 业务代码使用的遥控旋转比例
 #define CMD_REMOTE_YAW_MAX_WZ CMD_R2_REMOTE_YAW_MAX_WZ                                 // 业务代码使用的遥控旋转满杆输出上限
@@ -477,6 +482,7 @@
 #define VISION_PID_Y_MAXOUT VISION_R2_PID_Y_MAXOUT                                     // Jeffrey070318增加：业务代码使用的视觉Y轴输出限幅。
 #define VISION_PID_DEADBAND VISION_R2_PID_DEADBAND                                     // Jeffrey070318增加：业务代码使用的视觉PID死区。
 #define VISION_PID_INTEGRAL_RATIO VISION_R2_PID_INTEGRAL_RATIO                         // Jeffrey070318增加：业务代码使用的视觉PID积分限幅比例。
+#define VISION_SERVE_TRIGGER_DELAY_MS VISION_R2_SERVE_TRIGGER_DELAY_MS                 // Jeffrey070318增加：业务代码使用的视觉触发机械臂延迟。
 #define OPTICAL_FLOW_PROTOCOL OPTICAL_FLOW_R2_PROTOCOL                                 // Jeffrey070318增加：业务代码使用的光流协议。
 #define OPTICAL_FLOW_SCALE_X OPTICAL_FLOW_R2_SCALE_X                                   // Jeffrey070318增加：业务代码使用的光流X轴缩放。
 #define OPTICAL_FLOW_SCALE_Y OPTICAL_FLOW_R2_SCALE_Y                                   // Jeffrey070318增加：业务代码使用的光流Y轴缩放。

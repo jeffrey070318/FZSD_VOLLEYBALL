@@ -4,7 +4,7 @@
 #include "bsp_usart.h"
 
 /* ---------------- Frame lengths, matching the upper-computer protocol ---------------- */
-#define VISION_RECV_SIZE 22u
+#define VISION_RECV_SIZE 19u
 #define VISION_SEND_SIZE 17u
 
 /* ---------------- Volleyball navigation protocol enums ---------------- */
@@ -32,7 +32,7 @@ typedef struct {
     uint8_t cmd;
     float target_x;
     float target_y;
-    float target_yaw;
+    uint8_t flag;
     float target_time;
 } Vision_Recv_s;
 

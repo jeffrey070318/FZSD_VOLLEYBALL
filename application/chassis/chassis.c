@@ -122,26 +122,30 @@ static void ChassisUpdateMotorDebug()
 static void ChassisVofaSendDebug()
 {
     static uint16_t vofa_divider = 0;
-    float vofa_data[11];
+    float vofa_data[15];
 
     vofa_divider++;
     if (vofa_divider < ROBOT_VOFA_CHASSIS_DEBUG_DIVIDER)
         return;
     vofa_divider = 0;
 
-    vofa_data[0] = chassis_cmd_recv.vx;
-    vofa_data[1] = chassis_cmd_recv.vy;
-    vofa_data[2] = chassis_cmd_recv.wz;
-    vofa_data[3] = vt_lf;
-    vofa_data[4] = vt_rf;
-    vofa_data[5] = vt_lb;
-    vofa_data[6] = vt_rb;
+    vofa_data[0] = -chassis_cmd_recv.vx;
+    vofa_data[1] = -chassis_cmd_recv.vy;
+    vofa_data[2] = -chassis_cmd_recv.wz;
+    vofa_data[3] = -vt_lf;
+    vofa_data[4] = -vt_rf;
+    vofa_data[5] = -vt_lb;
+    vofa_data[6] = -vt_rb;
     vofa_data[7] = dbg_chassis_fb_speed_lf;
     vofa_data[8] = dbg_chassis_fb_speed_rf;
     vofa_data[9] = dbg_chassis_fb_speed_lb;
     vofa_data[10] = dbg_chassis_fb_speed_rb;
+    vofa_data[11] = (float)dbg_chassis_fb_current_lf;
+    vofa_data[12] = (float)dbg_chassis_fb_current_rf;
+    vofa_data[13] = (float)dbg_chassis_fb_current_lb;
+    vofa_data[14] = (float)dbg_chassis_fb_current_rb;
 
-    (void)vofa_justfloat_output_dma(vofa_data, 11u, &huart7);
+    (void)vofa_justfloat_output_dma(vofa_data, 15u, &huart7);
 }
 #endif
 

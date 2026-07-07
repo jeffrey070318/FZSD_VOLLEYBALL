@@ -61,6 +61,8 @@ static Vision_Recv_s *vision_recv_data;   // 视觉接收数据指针,初始化�
 #if ROBOT_ENABLE_VISION
 // Jeffrey070318增加：视觉相机启用时才保留发送缓存，未接相机时避免无用视觉链路。
 static Vision_Send_s vision_send_data; // 视觉发送数据
+static uint8_t vision_serve_pending = 0;
+static uint32_t vision_serve_trigger_tick = 0;
 #endif
 
 // Jeffrey070318增加：cmd层使用中性的Delta动作缓存，R1/R2分别在小函数内映射输入来源。
@@ -100,8 +102,14 @@ volatile float dbg_cmd_chassis_wz = 0.0f;
 volatile uint8_t dbg_cmd_chassis_mode = 0;
 volatile uint16_t dbg_cmd_keep_front_hold_ticks = 0;
 volatile uint8_t dbg_cmd_keep_front_lock_active = 0;
+volatile uint8_t dbg_cmd_right2_test_active = 0;
+volatile float dbg_cmd_right2_test_target_x = 0.0f;
+volatile float dbg_cmd_right2_test_target_y = 0.0f;
 volatile float dbg_cmd_pitch_target_pos = 0.0f; // Jeffrey070318增加：LiveWatch查看CMD下发给pitch的目标位置。
 volatile float dbg_cmd_pitch_speed = 0.0f;      // Jeffrey070318增加：LiveWatch查看CMD下发给pitch的位置速度模式速度。
+volatile uint8_t dbg_cmd_vision_flag = 0;
+volatile uint8_t dbg_cmd_vision_serve_pending = 0;
+volatile uint32_t dbg_cmd_vision_serve_elapsed_ms = 0;
 
 // static Publisher_t *gimbal_cmd_pub;            // 云台控制消息发布者
 // static Subscriber_t *gimbal_feed_sub;          // 云台反馈信息订阅者
@@ -122,6 +130,9 @@ static PIDInstance pid_vision_y;
 static uint8_t last_vision_cmd = CMD_MOVE_PLAN;
 static uint16_t offset_invalid_cnt = 0;
 #endif
+static uint8_t right2_fixed_move_active = 0;
+static float right2_fixed_move_target_x = 0.0f;
+static float right2_fixed_move_target_y = 0.0f;
 
 void RobotCMDInit()
 {
@@ -374,6 +385,60 @@ static void AutoNavigation(void)
 #endif
 }
 
+// Jeffrey070318增加：右二临时固定距离测试，用光流当前位置生成Y方向误差，但输出走视觉误差PID，便于无算法时调offset响应。
+static void Right2FixedMoveTest(void)
+{
+#if ROBOT_ENABLE_OPTICAL_FLOW
+    if (!OpticalFlowIsOnline(optical_flow))
+    {
+        chassis_cmd_send.vx = 0.0f;
+        chassis_cmd_send.vy = 0.0f;
+        right2_fixed_move_active = 0;
+        dbg_cmd_right2_test_active = 0;
+        return;
+    }
+
+    const OpticalFlow_Data_s *flow_data = OpticalFlowGetData(optical_flow);
+    if (!right2_fixed_move_active)
+    {
+        right2_fixed_move_target_x = flow_data->position_x_global;
+        right2_fixed_move_target_y = flow_data->position_y_global + RIGHT2_FIXED_MOVE_TEST_Y;
+        right2_fixed_move_active = 1;
+
+        PID_Init_Config_s cfg_y = {
+            .Kp = VISION_PID_Y_KP,
+            .Ki = VISION_PID_Y_KI,
+            .Kd = VISION_PID_Y_KD,
+            .MaxOut = VISION_PID_Y_MAXOUT,
+            .DeadBand = RIGHT2_FIXED_MOVE_TEST_DEADBAND,
+            .Improve = PID_Integral_Limit,
+            .IntegralLimit = VISION_PID_Y_MAXOUT * VISION_PID_INTEGRAL_RATIO,
+        };
+        PIDInit(&pid_vision_y, &cfg_y);
+    }
+
+    float err_y = right2_fixed_move_target_y - flow_data->position_y_global;
+    float dist = (err_y >= 0.0f) ? err_y : -err_y;
+
+    dbg_cmd_right2_test_active = right2_fixed_move_active;
+    dbg_cmd_right2_test_target_x = right2_fixed_move_target_x;
+    dbg_cmd_right2_test_target_y = right2_fixed_move_target_y;
+
+    if (dist > 3.0f || dist < NAV_ARRIVAL_DIST)
+    {
+        chassis_cmd_send.vx = 0.0f;
+        chassis_cmd_send.vy = 0.0f;
+    }
+    else
+    {
+        chassis_cmd_send.vx = 0.0f;
+        chassis_cmd_send.vy = PIDCalculate(&pid_vision_y, -err_y, 0.0f);
+    }
+#else
+    chassis_cmd_send.vx = 0.0f;
+    chassis_cmd_send.vy = 0.0f;
+#endif
+}
 // Jeffrey070318增加：遥控旋转使用二次曲线，小摇杆保留更细角度控制，满杆仍保留可用转速。
 static float RemoteYawWzFromJoystick(int16_t rocker_yaw)
 {
@@ -422,7 +487,16 @@ static void RemoteControlSet()
 
     if (auto_mode)
     {
-        AutoNavigation();
+        if (switch_is_down(rc_data[TEMP].rc.switch_right2))
+        {
+            Right2FixedMoveTest();
+        }
+        else
+        {
+            right2_fixed_move_active = 0;
+            dbg_cmd_right2_test_active = 0;
+            AutoNavigation();
+        }
     }
     else
     {
@@ -511,7 +585,7 @@ static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
 }
 #endif
 
-// Jeffrey070318修改：左二开关专用于机械臂，保持原有接球控制语义；右一腾出给急停。
+// Jeffrey070318修改：手动模式左二控制机械臂；自动模式下机械臂只接受视觉flag，不再响应遥控左二。
 static void RemoteControlSetArm(void)
 {
 #if ROBOT_LOCK_PITCH_TARGET
@@ -524,11 +598,59 @@ static void RemoteControlSetArm(void)
     dbg_cmd_pitch_target_pos = cmd_pitch_target_pos;
     dbg_cmd_pitch_speed = cmd_pitch_speed;
 
-    if (switch_is_down(rc_data[TEMP].rc.switch_left2))
-        cmd_delta_action = DELTA_HIT;
-    else
+    if (switch_is_down(rc_data[TEMP].rc.switch_left1))
+    {
+#if ROBOT_ENABLE_VISION
+        uint8_t vision_flag = (VisionIsOnline() && vision_recv_data != NULL) ? vision_recv_data->flag : 0u;
+        dbg_cmd_vision_flag = vision_flag;
+
+        if (vision_flag == 1u)
+        {
+            uint32_t now = HAL_GetTick();
+            if (!vision_serve_pending)
+            {
+                vision_serve_pending = 1;
+                vision_serve_trigger_tick = now;
+            }
+
+            dbg_cmd_vision_serve_elapsed_ms = now - vision_serve_trigger_tick;
+            if (dbg_cmd_vision_serve_elapsed_ms >= VISION_SERVE_TRIGGER_DELAY_MS)
+                cmd_delta_action = DELTA_SERVE;
+            else
+                cmd_delta_action = DELTA_READY;
+        }
+        else
+        {
+            vision_serve_pending = 0;
+            dbg_cmd_vision_serve_elapsed_ms = 0;
+            cmd_delta_action = DELTA_READY;
+        }
+        dbg_cmd_vision_serve_pending = vision_serve_pending;
+#else
         cmd_delta_action = DELTA_READY;
-    // Jeffrey070318增加：缓存CMD对左二开关转换出的机械臂动作。
+#endif
+    }
+    else if (switch_is_down(rc_data[TEMP].rc.switch_left2))
+    {
+#if ROBOT_ENABLE_VISION
+        vision_serve_pending = 0;
+        dbg_cmd_vision_flag = 0;
+        dbg_cmd_vision_serve_pending = 0;
+        dbg_cmd_vision_serve_elapsed_ms = 0;
+#endif
+        cmd_delta_action = DELTA_HIT;
+    }
+    else
+    {
+#if ROBOT_ENABLE_VISION
+        vision_serve_pending = 0;
+        dbg_cmd_vision_flag = 0;
+        dbg_cmd_vision_serve_pending = 0;
+        dbg_cmd_vision_serve_elapsed_ms = 0;
+#endif
+        cmd_delta_action = DELTA_READY;
+    }
+    // Jeffrey070318增加：缓存CMD转换出的机械臂动作，自动模式下应只随视觉flag变化。
     dbg_cmd_delta_action = (uint8_t)cmd_delta_action;
 #if ROBOT_HAS_SERVE
     // Jeffrey070318修改：当前右开关不再控制launcher，避免R1调机械臂时误触发发球拨杆。
@@ -556,6 +678,12 @@ static void RemoteOfflineStop(void)
     dbg_cmd_delta_action = (uint8_t)cmd_delta_action;
     dbg_cmd_pitch_target_pos = cmd_pitch_target_pos;
     dbg_cmd_pitch_speed = cmd_pitch_speed;
+#if ROBOT_ENABLE_VISION
+    vision_serve_pending = 0;
+    dbg_cmd_vision_flag = 0;
+    dbg_cmd_vision_serve_pending = 0;
+    dbg_cmd_vision_serve_elapsed_ms = 0;
+#endif
 }
 
 static Delta_Action_e GetDeltaAction(void)
