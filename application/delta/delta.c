@@ -533,6 +533,7 @@ void DeltaTask()
 
     /* 填充 delta 反馈数据：上报 delta 当前状态给 cmd */
     delta_feedback_data.delta_feedback = (uint8_t)Delta_State;
+    delta_feedback_data.pitch_angle = Pitch_motor.para.pos;
     /* [测试] 填入自增计数器(与上条消息同值, 表明同一周期) */
     delta_feedback_data.test_seq = delta_test_seq;
     PubPushMessage(delta_pub, (void *)&delta_feedback_data);

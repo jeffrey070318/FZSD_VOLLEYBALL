@@ -949,11 +949,7 @@ void RobotCMDTask()
     else
         vision_send_data.mode = MODE_REMOTE;
 
-#if CHASSIS_YAW_SOURCE == YAW_SOURCE_DM_IMU
-    vision_send_data.robot_yaw = DM_IMU_GetData()->yaw;
-#elif CHASSIS_YAW_SOURCE == YAW_SOURCE_BMI088_INS
-    vision_send_data.robot_yaw = ins_imu_data->Yaw;
-#endif
+    vision_send_data.pitch_angle = delta_fetch_data.pitch_angle;
     // Jeffrey070318修改：光流未连接时视觉上报坐标置0，避免访问空指针。
     vision_send_data.robot_x = (flow_data != NULL) ? flow_data->position_x_global : 0.0f;
     vision_send_data.robot_y = (flow_data != NULL) ? flow_data->position_y_global : 0.0f;

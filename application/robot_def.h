@@ -47,7 +47,7 @@
 #define R2_DEBUG_ENABLE_CMD_APP 1
 
 // Jeffrey070318修改：pitch轴按模式控制。自动模式锁定到单独角度，手动模式由左拨杆下拉控制。
-#define ROBOT_AUTO_LOCK_PITCH_TARGET_POS PITCH_REMOTE_BACK_POS
+#define ROBOT_AUTO_LOCK_PITCH_TARGET_POS -0.74
 
 // Jeffrey070318修改：进入遥控器整车测试阶段，CMD接管底盘和机械臂，单模块直测默认关闭。
 #define R2_DEBUG_ENABLE_INS_TASK 1    // 1: 创建INS任务
@@ -217,21 +217,21 @@
 #define CHASSIS_R2_MOTOR_RF_REVERSE MOTOR_DIRECTION_REVERSE // R2右前轮电机方向
 #define CHASSIS_R2_MOTOR_LB_REVERSE MOTOR_DIRECTION_REVERSE // R2左后轮电机方向
 #define CHASSIS_R2_MOTOR_RB_REVERSE MOTOR_DIRECTION_REVERSE // R2右后轮电机方向
-#define CHASSIS_R2_SPEED_PID_KP 10.0f                       // R2底盘速度环P
+#define CHASSIS_R2_SPEED_PID_KP 15.0f                       // R2底盘速度环P
 #define CHASSIS_R2_SPEED_PID_KI 0.1f                        // R2底盘速度环I
 #define CHASSIS_R2_SPEED_PID_KD 0.0f                        // R2底盘速度环D
 #define CHASSIS_R2_SPEED_PID_INTEGRAL_LIMIT 3000.0f         // R2底盘速度环积分限幅
-#define CHASSIS_R2_SPEED_PID_MAX_OUT 12000.0f               // R2底盘速度环输出限幅
+#define CHASSIS_R2_SPEED_PID_MAX_OUT 14000.0f               // R2底盘速度环输出限幅
 #define CHASSIS_R2_CURRENT_PID_KP 0.5f                      // R2底盘电流环P
 #define CHASSIS_R2_CURRENT_PID_KI 0.0f                      // R2底盘电流环I
 #define CHASSIS_R2_CURRENT_PID_KD 0.0f                      // R2底盘电流环D
 #define CHASSIS_R2_CURRENT_PID_INTEGRAL_LIMIT 3000.0f       // R2底盘电流环积分限幅
 #define CHASSIS_R2_CURRENT_PID_MAX_OUT 15000.0f             // R2底盘电流环输出限幅
-#define CHASSIS_R2_SPEED_FEEDFORWARD_KV 0.05f               // R2底盘速度目标到电流前馈的比例，调响应慢时从0逐步加。
-#define CHASSIS_R2_HEADING_PID_KP 70.0f                     // R2车头保持角度环P
+#define CHASSIS_R2_SPEED_FEEDFORWARD_KV 0.07f               // R2底盘速度目标到电流前馈的比例，调响应慢时从0逐步加。
+#define CHASSIS_R2_HEADING_PID_KP 90.0f                     // R2车头保持角度环P
 #define CHASSIS_R2_HEADING_PID_KI 1.5f                      // R2车头保持角度环I
 #define CHASSIS_R2_HEADING_PID_KD 120.0f                    // R2车头保持角度环D
-#define CHASSIS_R2_HEADING_PID_MAX_OUT 2500.0f              // R2车头保持角度环输出限幅
+#define CHASSIS_R2_HEADING_PID_MAX_OUT 3000.0f              // R2车头保持角度环输出限幅
 #define CHASSIS_R2_HEADING_PID_DEADBAND 0.3f                // R2车头保持角度死区
 #define CHASSIS_R2_HEADING_PID_INTEGRAL_LIMIT 400.0f        // R2车头保持角度环积分限幅
 #define CHASSIS_R2_KEEP_FRONT_STATIC_WZ_DEADBAND 120.0f     // R2静止车头保持时小于该wz认为不足以驱动有效纠偏，直接置零防抖
@@ -624,6 +624,7 @@ typedef struct
 typedef struct
 {
     uint8_t delta_feedback;
+    float pitch_angle; // Delta回传pitch实际角度，视觉发送帧最后一个float字段上报给上位机。
     uint8_t test_seq; // [测试] delta 自增计数器, 验证 delta->cmd 链路
 } Delta_Upload_Data_s;
 
