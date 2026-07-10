@@ -61,6 +61,7 @@ static DJIMotorInstance *motor_lf, *motor_rf, *motor_lb, *motor_rb; // left righ
 /* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
 static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
 static float vt_lf, vt_rf, vt_lb, vt_rb; // 底盘速度解算后的临时输出,待进行限幅
+static float vt_trans_lf, vt_trans_rf, vt_trans_lb, vt_trans_rb;
 static float chassis_ff_current_lf, chassis_ff_current_rf, chassis_ff_current_lb, chassis_ff_current_rb;
 
 static PIDInstance heading_pid;                               // 前向保持PID实例
@@ -301,10 +302,15 @@ static void MecanumCalculate()
     float vx = chassis_vy;
     float wz = chassis_cmd_recv.wz;
 
-    vt_lf = vx + vy + ROTATION_RADIUS * wz;
-    vt_rf = -vx + vy + ROTATION_RADIUS * wz;
-    vt_lb = vx - vy + ROTATION_RADIUS * wz;
-    vt_rb = -vx - vy + ROTATION_RADIUS * wz;
+    vt_trans_lf = vx + vy;
+    vt_trans_rf = -vx + vy;
+    vt_trans_lb = vx - vy;
+    vt_trans_rb = -vx - vy;
+
+    vt_lf = vt_trans_lf + ROTATION_RADIUS * wz;
+    vt_rf = vt_trans_rf + ROTATION_RADIUS * wz;
+    vt_lb = vt_trans_lb + ROTATION_RADIUS * wz;
+    vt_rb = vt_trans_rb + ROTATION_RADIUS * wz;
 }
 
 /**
@@ -318,10 +324,11 @@ static void LimitChassisOutput()
     // referee_data->PowerHeatData.chassis_power_buffer;
 
     // 完成功率限制后进行电机参考输入设定
-    chassis_ff_current_lf = CHASSIS_SPEED_FEEDFORWARD_KV * vt_lf * ((CHASSIS_MOTOR_LF_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
-    chassis_ff_current_rf = CHASSIS_SPEED_FEEDFORWARD_KV * vt_rf * ((CHASSIS_MOTOR_RF_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
-    chassis_ff_current_lb = CHASSIS_SPEED_FEEDFORWARD_KV * vt_lb * ((CHASSIS_MOTOR_LB_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
-    chassis_ff_current_rb = CHASSIS_SPEED_FEEDFORWARD_KV * vt_rb * ((CHASSIS_MOTOR_RB_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
+    // 前馈只使用平移分量，避免车头锁定/ yaw 微调时 wz 分量被前馈放大。
+    chassis_ff_current_lf = CHASSIS_SPEED_FEEDFORWARD_KV * vt_trans_lf * ((CHASSIS_MOTOR_LF_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
+    chassis_ff_current_rf = CHASSIS_SPEED_FEEDFORWARD_KV * vt_trans_rf * ((CHASSIS_MOTOR_RF_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
+    chassis_ff_current_lb = CHASSIS_SPEED_FEEDFORWARD_KV * vt_trans_lb * ((CHASSIS_MOTOR_LB_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
+    chassis_ff_current_rb = CHASSIS_SPEED_FEEDFORWARD_KV * vt_trans_rb * ((CHASSIS_MOTOR_RB_REVERSE == MOTOR_DIRECTION_REVERSE) ? -1.0f : 1.0f);
     DJIMotorSetRef(motor_lf, vt_lf);
     DJIMotorSetRef(motor_rf, vt_rf);
     DJIMotorSetRef(motor_lb, vt_lb);
