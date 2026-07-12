@@ -133,15 +133,11 @@ volatile uint8_t dbg_cmd_auto_chassis_lock = 0;
 static Robot_Status_e robot_state; // 机器人整体工作状态
 
 // Jeffrey070318修改：视觉模式由上位机cmd动态选择，偏移PID实例在视觉导航启用时常驻。
-#if ROBOT_ENABLE_VISION && ROBOT_ENABLE_OPTICAL_FLOW
+#if ROBOT_ENABLE_VISION
 static PIDInstance pid_vision_x;
 static PIDInstance pid_vision_y;
 static uint8_t last_vision_cmd = CMD_MOVE_PLAN;
-static uint16_t offset_invalid_cnt = 0;
 #endif
-static uint8_t right2_fixed_move_active = 0;
-static float right2_fixed_move_target_x = 0.0f;
-static float right2_fixed_move_target_y = 0.0f;
 
 void RobotCMDInit()
 {
@@ -215,7 +211,7 @@ void RobotCMDInit()
     ins_imu_data = INS_Init(); // 获取 BMI088 EKF 解算结果指针(幂等,可安全多次调用)
 
 // Jeffrey070318修改：视觉cmd可在坐标导航和偏移PID间切换，因此PID在视觉导航启用时初始化。
-#if ROBOT_ENABLE_VISION && ROBOT_ENABLE_OPTICAL_FLOW
+#if ROBOT_ENABLE_VISION
     PID_Init_Config_s cfg_x = {
         .Kp = VISION_PID_X_KP,
         .Ki = VISION_PID_X_KI,
@@ -290,11 +286,11 @@ static void CalcOffsetAngle()
  * 不动条件: 视觉离线 | 光流离线 | target=(0,0) | 已到达目标.\n
  * 右开关及朝向控制逻辑与手动模式一致, 本函数不干预.
  */
-// Jeffrey070318修改：左一开关下位进入自动导航，vx/vy由视觉/光流链路给出。
+// Jeffrey070318修改：左一开关下位进入自动导航；cmd=1误差模式只依赖视觉，cmd=0坐标模式才依赖光流。
 static void AutoNavigation(void)
 {
-#if ROBOT_ENABLE_VISION && ROBOT_ENABLE_OPTICAL_FLOW
-    if (!VisionIsOnline() || !OpticalFlowIsOnline(optical_flow))
+#if ROBOT_ENABLE_VISION
+    if (!VisionIsOnline())
     {
         chassis_cmd_send.vx = 0.0f;
         chassis_cmd_send.vy = 0.0f;
@@ -327,7 +323,6 @@ static void AutoNavigation(void)
             };
             PIDInit(&pid_vision_x, &cfg_x);
             PIDInit(&pid_vision_y, &cfg_y);
-            offset_invalid_cnt = 0;
         }
         chassis_cmd_send.vx = 0.0f;
         chassis_cmd_send.vy = 0.0f;
@@ -337,6 +332,14 @@ static void AutoNavigation(void)
 
     if (cmd == CMD_MOVE_PLAN)
     {
+#if ROBOT_ENABLE_OPTICAL_FLOW
+        if (!OpticalFlowIsOnline(optical_flow))
+        {
+            chassis_cmd_send.vx = 0.0f;
+            chassis_cmd_send.vy = 0.0f;
+            return;
+        }
+
         const OpticalFlow_Data_s *flow_data = OpticalFlowGetData(optical_flow);
 
         if (vision_recv_data->target_x == 0.0f && vision_recv_data->target_y == 0.0f)
@@ -362,29 +365,21 @@ static void AutoNavigation(void)
             chassis_cmd_send.vx = (err_x / dist) * speed;
             chassis_cmd_send.vy = (err_y / dist) * speed;
         }
+#else
+        chassis_cmd_send.vx = 0.0f;
+        chassis_cmd_send.vy = 0.0f;
+#endif
     }
     else
     {
         if (vision_recv_data->target_x == 0.0f && vision_recv_data->target_y == 0.0f)
         {
-            offset_invalid_cnt++;
-            // IMPORTANT: 这是cmd=1近距离视觉精修的临时丢目标衰减策略，需要根据实车确认。
-            // 设太大: 视觉丢球后底盘继续拖行；设太小: 偶发空帧会导致急停/抖动。
-            if (offset_invalid_cnt >= VISION_OFFSET_LOST_DECAY_TICKS)
-            {
-                chassis_cmd_send.vx = 0.0f;
-                chassis_cmd_send.vy = 0.0f;
-            }
-            else
-            {
-                float decay = 1.0f - (float)offset_invalid_cnt / (float)VISION_OFFSET_LOST_DECAY_TICKS;
-                chassis_cmd_send.vx *= decay;
-                chassis_cmd_send.vy *= decay;
-            }
+            // cmd=1时target_x/y=0表示视觉误差为0, 即球已在目标中心; 丢球请由上位机切回cmd=0表达。
+            chassis_cmd_send.vx = 0.0f;
+            chassis_cmd_send.vy = 0.0f;
         }
         else
         {
-            offset_invalid_cnt = 0;
             chassis_cmd_send.vx = PIDCalculate(&pid_vision_x, -vision_recv_data->target_x, 0.0f);
             chassis_cmd_send.vy = PIDCalculate(&pid_vision_y, -vision_recv_data->target_y, 0.0f);
         }
@@ -396,60 +391,6 @@ static void AutoNavigation(void)
 #endif
 }
 
-// Jeffrey070318增加：右二临时固定距离测试，用光流当前位置生成Y方向误差，但输出走视觉误差PID，便于无算法时调offset响应。
-static void Right2FixedMoveTest(void)
-{
-#if ROBOT_ENABLE_OPTICAL_FLOW
-    if (!OpticalFlowIsOnline(optical_flow))
-    {
-        chassis_cmd_send.vx = 0.0f;
-        chassis_cmd_send.vy = 0.0f;
-        right2_fixed_move_active = 0;
-        dbg_cmd_right2_test_active = 0;
-        return;
-    }
-
-    const OpticalFlow_Data_s *flow_data = OpticalFlowGetData(optical_flow);
-    if (!right2_fixed_move_active)
-    {
-        right2_fixed_move_target_x = flow_data->position_x_global;
-        right2_fixed_move_target_y = flow_data->position_y_global + RIGHT2_FIXED_MOVE_TEST_Y;
-        right2_fixed_move_active = 1;
-
-        PID_Init_Config_s cfg_y = {
-            .Kp = VISION_PID_Y_KP,
-            .Ki = VISION_PID_Y_KI,
-            .Kd = VISION_PID_Y_KD,
-            .MaxOut = VISION_PID_Y_MAXOUT,
-            .DeadBand = RIGHT2_FIXED_MOVE_TEST_DEADBAND,
-            .Improve = PID_Integral_Limit,
-            .IntegralLimit = VISION_PID_Y_MAXOUT * VISION_PID_INTEGRAL_RATIO,
-        };
-        PIDInit(&pid_vision_y, &cfg_y);
-    }
-
-    float err_y = right2_fixed_move_target_y - flow_data->position_y_global;
-    float dist = (err_y >= 0.0f) ? err_y : -err_y;
-
-    dbg_cmd_right2_test_active = right2_fixed_move_active;
-    dbg_cmd_right2_test_target_x = right2_fixed_move_target_x;
-    dbg_cmd_right2_test_target_y = right2_fixed_move_target_y;
-
-    if (dist > 3.0f || dist < NAV_ARRIVAL_DIST)
-    {
-        chassis_cmd_send.vx = 0.0f;
-        chassis_cmd_send.vy = 0.0f;
-    }
-    else
-    {
-        chassis_cmd_send.vx = 0.0f;
-        chassis_cmd_send.vy = PIDCalculate(&pid_vision_y, -err_y, 0.0f);
-    }
-#else
-    chassis_cmd_send.vx = 0.0f;
-    chassis_cmd_send.vy = 0.0f;
-#endif
-}
 // Jeffrey070318增加：遥控旋转使用二次曲线，小摇杆保留更细角度控制，满杆仍保留可用转速。
 static float RemoteYawWzFromJoystick(int16_t rocker_yaw)
 {
@@ -469,6 +410,25 @@ static float RemoteYawWzFromJoystick(int16_t rocker_yaw)
     return (rocker_yaw >= 0) ? wz : -wz;
 }
 
+// Jeffrey070318增加：遥控平移使用二次曲线，小摇杆细调更柔，满杆保持原线性比例对应的最大速度。
+static float RemoteMoveSpeedFromJoystick(int16_t rocker_move)
+{
+    int16_t abs_rocker = abs(rocker_move);
+    if (abs_rocker <= CMD_REMOTE_DEADBAND)
+        return 0.0f;
+
+    float range = CMD_REMOTE_MOVE_STICK_MAX - (float)CMD_REMOTE_DEADBAND;
+    if (range <= 0.0f)
+        return 0.0f;
+
+    float ratio = ((float)abs_rocker - (float)CMD_REMOTE_DEADBAND) / range;
+    if (ratio > 1.0f)
+        ratio = 1.0f;
+
+    float speed = ratio * ratio * CMD_REMOTE_MOVE_MAX_SPEED;
+    return (rocker_move >= 0) ? speed : -speed;
+}
+
 /**
  * YYP0418修改
  * @brief 控制输入为遥控器(调试时)的模式和控制量设置
@@ -479,7 +439,6 @@ static void RemoteControlSet()
     static uint8_t keep_front_lock_active = 0;
     static uint16_t keep_front_idle_ticks = 0;
     static float auto_remote_gain = 1.0f;
-    static uint32_t auto_remote_gain_last_tick = 0;
 
     // Jeffrey070318增加：缓存CMD看到的遥控器原始值，判断rc_data指针是否正常更新。
     dbg_cmd_rocker_r_ = rc_data[TEMP].rc.rocker_r_;
@@ -499,15 +458,11 @@ static void RemoteControlSet()
     const int auto_mode = switch_is_down(rc_data[TEMP].rc.switch_left1);
     const int auto_chassis_locked = auto_mode && AUTO_MODE_CHASSIS_LOCK_TEST;
     dbg_cmd_auto_chassis_lock = auto_chassis_locked ? 1u : 0u;
-    uint32_t now = HAL_GetTick();
-    uint32_t dt_ms = (auto_remote_gain_last_tick == 0u) ? 0u : (now - auto_remote_gain_last_tick);
-    auto_remote_gain_last_tick = now;
 
     if (auto_mode)
     {
         if (auto_chassis_locked)
         {
-            right2_fixed_move_active = 0;
             dbg_cmd_right2_test_active = 0;
             dbg_cmd_vision_target_seen = 0;
             auto_remote_gain = 1.0f;
@@ -517,46 +472,58 @@ static void RemoteControlSet()
         }
         else if (switch_is_down(rc_data[TEMP].rc.switch_right2))
         {
-            Right2FixedMoveTest();
+            dbg_cmd_right2_test_active = 0;
+            dbg_cmd_vision_target_seen = 0;
+            auto_remote_gain = 1.0f;
+            dbg_cmd_auto_remote_gain = auto_remote_gain;
+
+            if (move_x_active)
+                chassis_cmd_send.vx = RemoteMoveSpeedFromJoystick(rc_data[TEMP].rc.rocker_r_);
+            else
+                chassis_cmd_send.vx = 0.0f;
+
+            if (move_y_active)
+                chassis_cmd_send.vy = RemoteMoveSpeedFromJoystick(rc_data[TEMP].rc.rocker_r1);
+            else
+                chassis_cmd_send.vy = 0.0f;
         }
         else
         {
-            right2_fixed_move_active = 0;
             dbg_cmd_right2_test_active = 0;
             uint8_t vision_target_seen = 0;
 #if ROBOT_ENABLE_VISION
             vision_target_seen = (VisionIsOnline() && vision_recv_data != NULL &&
-                                  vision_recv_data->cmd == CMD_OFFSET &&
-                                  (vision_recv_data->target_x != 0.0f || vision_recv_data->target_y != 0.0f));
+                                  vision_recv_data->cmd == CMD_OFFSET);
             if (VisionIsOnline() && vision_recv_data != NULL)
             {
                 dbg_cmd_vision_target_x = vision_recv_data->target_x;
                 dbg_cmd_vision_target_y = vision_recv_data->target_y;
             }
 #endif
+            float auto_remote_gain_x = 1.0f;
+            float auto_remote_gain_y = 1.0f;
             if (vision_target_seen)
             {
-                float decay_ms = (float)VISION_REMOTE_BLEND_DECAY_MS;
-                float delta = (decay_ms > 0.0f) ? ((1.0f - VISION_REMOTE_BLEND_MIN_GAIN) * (float)dt_ms / decay_ms)
-                                                : (1.0f - VISION_REMOTE_BLEND_MIN_GAIN);
-                auto_remote_gain -= delta;
-                if (auto_remote_gain < VISION_REMOTE_BLEND_MIN_GAIN)
-                    auto_remote_gain = VISION_REMOTE_BLEND_MIN_GAIN;
+                float blend_range = VISION_REMOTE_BLEND_FULL_ERROR - VISION_REMOTE_BLEND_ZERO_ERROR;
+                if (blend_range > 0.0f)
+                {
+                    auto_remote_gain_x = (fabsf(vision_recv_data->target_x) - VISION_REMOTE_BLEND_ZERO_ERROR) / blend_range;
+                    auto_remote_gain_y = (fabsf(vision_recv_data->target_y) - VISION_REMOTE_BLEND_ZERO_ERROR) / blend_range;
+                    auto_remote_gain_x = float_constrain(auto_remote_gain_x, 0.0f, VISION_REMOTE_BLEND_MAX_GAIN);
+                    auto_remote_gain_y = float_constrain(auto_remote_gain_y, 0.0f, VISION_REMOTE_BLEND_MAX_GAIN);
+                }
+                else
+                {
+                    auto_remote_gain_x = 0.0f;
+                    auto_remote_gain_y = 0.0f;
+                }
             }
-            else
-            {
-                float recover_ms = (float)VISION_REMOTE_BLEND_RECOVER_MS;
-                float delta = (recover_ms > 0.0f) ? ((1.0f - VISION_REMOTE_BLEND_MIN_GAIN) * (float)dt_ms / recover_ms)
-                                                  : (1.0f - VISION_REMOTE_BLEND_MIN_GAIN);
-                auto_remote_gain += delta;
-                if (auto_remote_gain > 1.0f)
-                    auto_remote_gain = 1.0f;
-            }
+            auto_remote_gain = (auto_remote_gain_x > auto_remote_gain_y) ? auto_remote_gain_x : auto_remote_gain_y;
             dbg_cmd_vision_target_seen = vision_target_seen;
             dbg_cmd_auto_remote_gain = auto_remote_gain;
 
-            float remote_vx = move_x_active ? CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r_ * auto_remote_gain : 0.0f;
-            float remote_vy = move_y_active ? CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r1 * auto_remote_gain : 0.0f;
+            float remote_vx = RemoteMoveSpeedFromJoystick(rc_data[TEMP].rc.rocker_r_) * auto_remote_gain_x;
+            float remote_vy = RemoteMoveSpeedFromJoystick(rc_data[TEMP].rc.rocker_r1) * auto_remote_gain_y;
             // 自动模式下视觉误差修正与遥控平移叠加: 人负责靠近，视觉同时做最后对准。
             AutoNavigation();
             chassis_cmd_send.vx += remote_vx;
@@ -569,12 +536,12 @@ static void RemoteControlSet()
         dbg_cmd_vision_target_seen = 0;
         dbg_cmd_auto_remote_gain = auto_remote_gain;
         if (move_x_active)
-            chassis_cmd_send.vx = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r_;
+            chassis_cmd_send.vx = RemoteMoveSpeedFromJoystick(rc_data[TEMP].rc.rocker_r_);
         else
             chassis_cmd_send.vx = 0.0f;
 
         if (move_y_active)
-            chassis_cmd_send.vy = CMD_REMOTE_MOVE_SCALE * (float)rc_data[TEMP].rc.rocker_r1;
+            chassis_cmd_send.vy = RemoteMoveSpeedFromJoystick(rc_data[TEMP].rc.rocker_r1);
         else
             chassis_cmd_send.vy = 0.0f;
     }
@@ -949,7 +916,11 @@ void RobotCMDTask()
     else
         vision_send_data.mode = MODE_REMOTE;
 
-    vision_send_data.pitch_angle = delta_fetch_data.pitch_angle;
+#if CHASSIS_YAW_SOURCE == YAW_SOURCE_DM_IMU
+    vision_send_data.robot_yaw = DM_IMU_GetData()->yaw;
+#elif CHASSIS_YAW_SOURCE == YAW_SOURCE_BMI088_INS
+    vision_send_data.robot_yaw = ins_imu_data->Yaw;
+#endif
     // Jeffrey070318修改：光流未连接时视觉上报坐标置0，避免访问空指针。
     vision_send_data.robot_x = (flow_data != NULL) ? flow_data->position_x_global : 0.0f;
     vision_send_data.robot_y = (flow_data != NULL) ? flow_data->position_y_global : 0.0f;

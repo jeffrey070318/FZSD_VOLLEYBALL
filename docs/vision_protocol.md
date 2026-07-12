@@ -29,7 +29,7 @@
 
 ### 下位机行为
 
-1. 在线检查: 视觉/光流均在线 + target ≠ (0, 0)
+1. 在线检查: 视觉/光流均在线 + `cmd = 0` + target ≠ (0, 0)
 2. 安全边界: `dist > 3.0m` → 不动
 3. 到达判定: `dist < 0.1m` → 停
 4. 速度规划:
@@ -51,7 +51,7 @@ vy = (err_y / dist) × speed
 
 ### 下位机行为
 
-1. 在线检查: 视觉/光流均在线 + target ≠ (0, 0)
+1. 在线检查: 视觉在线 + `cmd = 1`。该误差模式不依赖光流计。
 2. PID 跟踪:
 
 ```
@@ -61,7 +61,7 @@ vy = PID(−target_y, 0)
 
 3. 模式切换时: 自动清零 PID 积分 + 速度归零
 
-4. IMPORTANT: 当 `target_x == 0 && target_y == 0` 时，下位机会认为误差模式暂时丢目标，并按 `VISION_OFFSET_LOST_DECAY_TICKS` 对上一速度做衰减后停车。该值当前是临时实测参数，过大会拖行，过小会急停/抖动，需要联调确认。
+4. IMPORTANT: `cmd = 1` 时，`target_x == 0 && target_y == 0` 表示视觉误差为 0，即球已经在目标中心；丢球不要用 `cmd = 1,target = 0` 表达，应切回 `cmd = 0` 或停止发送有效误差帧。
 
 ---
 
@@ -93,7 +93,9 @@ vy = PID(−target_y, 0)
 | NAV_ARRIVAL_DIST | 0.10 m |
 | PID X Kp / Ki / Kd | R2当前为120 / 0.5 / 30 |
 | PID Y Kp / Ki / Kd | R2当前为100 / 0.5 / 45 |
-| VISION_OFFSET_LOST_DECAY_TICKS | R2当前临时值50，需实测确认 |
+| VISION_REMOTE_BLEND_ZERO_ERROR | R2当前为2 pixel，单轴误差小于该值时对应方向遥控平移退出 |
+| VISION_REMOTE_BLEND_FULL_ERROR | R2当前为80 pixel，单轴误差大于该值时对应方向达到最大微调增益 |
+| VISION_REMOTE_BLEND_MAX_GAIN | R2当前为0.15，看到球后遥控平移最大只保留15%微调量 |
 
 ---
 

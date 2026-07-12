@@ -36,8 +36,8 @@
 // Jeffrey070318修改：USB默认任务栈已加大，恢复视觉VCP调用用于算法联调。
 #define ROBOT_ENABLE_VISION 1
 
-// Jeffrey070318增加：光流计暂未连接，置0跳过OpticalFlowInit和周期读取，接好光流后改回1。
-#define ROBOT_ENABLE_OPTICAL_FLOW 1
+// Jeffrey070318修改：当前自动控制策略取消使用光流计，置0跳过OpticalFlowInit和周期读取。
+#define ROBOT_ENABLE_OPTICAL_FLOW 0
 
 // Jeffrey070318增加：底盘调参用VOFA输出，走UART7 DMA；分频值按ChassisTask调用周期折算输出频率。
 #define ROBOT_ENABLE_VOFA_CHASSIS_DEBUG 1
@@ -128,33 +128,35 @@
 #define CHASSIS_R1_VY_DIRECTION -1                          // R1底盘Y方向符号, 1=正向 -1=反向
 
 /* R1 navigation and cmd */
-#define NAV_R1_MAX_SPEED 10000.0f                            // R1导航速度上限
-#define NAV_R1_SPEED_GAIN 6000.0f                            // R1导航距离到速度的比例
-#define NAV_R1_ARRIVAL_DIST 0.15f                            // R1导航到点判定距离
-#define CMD_R1_REMOTE_MOVE_SCALE 30.0f                       // R1遥控器平移摇杆比例
-#define CMD_R1_REMOTE_YAW_SCALE 4.0f                         // R1遥控器旋转摇杆比例
-#define CMD_R1_REMOTE_YAW_MAX_WZ 2000.0f                     // R1遥控器旋转二次曲线满杆输出上限
-#define CMD_R1_REMOTE_YAW_STICK_MAX 660.0f                   // R1遥控器旋转摇杆满量程
-#define CMD_R1_REMOTE_DEADBAND 50                            // R1遥控器摇杆死区
-#define CMD_R1_REMOTE_STOP_DIAL_THRESHOLD 300                // R1遥控器拨轮急停阈值
-#define VISION_R1_MODE VISION_MODE_COORDINATE                // Jeffrey070318增加：R1视觉模式，坐标模式/偏移模式二选一。
-#define VISION_R1_PID_X_KP 0.5f                              // Jeffrey070318增加：R1视觉偏移模式X轴PID比例系数。
-#define VISION_R1_PID_X_KI 0.01f                             // Jeffrey070318增加：R1视觉偏移模式X轴PID积分系数。
-#define VISION_R1_PID_X_KD 0.0f                              // Jeffrey070318增加：R1视觉偏移模式X轴PID微分系数。
-#define VISION_R1_PID_X_MAXOUT 10000.0f                      // Jeffrey070318增加：R1视觉偏移模式X轴速度输出限幅。
-#define VISION_R1_PID_Y_KP 0.5f                              // Jeffrey070318增加：R1视觉偏移模式Y轴PID比例系数。
-#define VISION_R1_PID_Y_KI 0.01f                             // Jeffrey070318增加：R1视觉偏移模式Y轴PID积分系数。
-#define VISION_R1_PID_Y_KD 0.0f                              // Jeffrey070318增加：R1视觉偏移模式Y轴PID微分系数。
-#define VISION_R1_PID_Y_MAXOUT 10000.0f                      // Jeffrey070318增加：R1视觉偏移模式Y轴速度输出限幅。
-#define VISION_R1_PID_DEADBAND 2.0f                          // Jeffrey070318增加：R1视觉偏移PID死区，过滤小像素误差。
-#define VISION_R1_PID_INTEGRAL_RATIO 0.3f                    // Jeffrey070318增加：R1视觉偏移PID积分限幅相对MaxOut的比例。
-#define OPTICAL_FLOW_R1_PROTOCOL OPTICAL_FLOW_UPIXELS_NO_TOF // Jeffrey070318增加：R1光流协议，学长版使用无TOF帧。
-#define OPTICAL_FLOW_R1_SCALE_X OPTICAL_FLOW_DEFAULT_SCALE   // Jeffrey070318增加：R1光流传感器X轴角位移缩放。
-#define OPTICAL_FLOW_R1_SCALE_Y 20000.0f                     // Jeffrey070318增加：R1光流传感器Y轴角位移缩放。
-#define OPTICAL_FLOW_R1_SWAP_XY 1u                           // Jeffrey070318增加：R1光流安装方向是否交换X/Y。
-#define OPTICAL_FLOW_R1_X_DIRECTION 1                        // Jeffrey070318增加：R1光流X方向符号修正。
-#define OPTICAL_FLOW_R1_Y_DIRECTION -1                       // Jeffrey070318增加：R1光流Y方向符号修正。
-#define OPTICAL_FLOW_R1_ENABLE_GLOBAL_FRAME 1u               // Jeffrey070318增加：R1光流是否启用yaw旋转到世界坐标。
+#define NAV_R1_MAX_SPEED 10000.0f                                                              // R1导航速度上限
+#define NAV_R1_SPEED_GAIN 6000.0f                                                              // R1导航距离到速度的比例
+#define NAV_R1_ARRIVAL_DIST 0.15f                                                              // R1导航到点判定距离
+#define CMD_R1_REMOTE_MOVE_SCALE 30.0f                                                         // R1遥控器平移摇杆旧线性比例，用于计算二次曲线满杆速度
+#define CMD_R1_REMOTE_MOVE_STICK_MAX 660.0f                                                    // R1遥控器平移摇杆满量程
+#define CMD_R1_REMOTE_MOVE_MAX_SPEED (CMD_R1_REMOTE_MOVE_SCALE * CMD_R1_REMOTE_MOVE_STICK_MAX) // R1遥控器平移二次曲线满杆输出
+#define CMD_R1_REMOTE_YAW_SCALE 4.0f                                                           // R1遥控器旋转摇杆比例
+#define CMD_R1_REMOTE_YAW_MAX_WZ 2000.0f                                                       // R1遥控器旋转二次曲线满杆输出上限
+#define CMD_R1_REMOTE_YAW_STICK_MAX 660.0f                                                     // R1遥控器旋转摇杆满量程
+#define CMD_R1_REMOTE_DEADBAND 50                                                              // R1遥控器摇杆死区
+#define CMD_R1_REMOTE_STOP_DIAL_THRESHOLD 300                                                  // R1遥控器拨轮急停阈值
+#define VISION_R1_MODE VISION_MODE_COORDINATE                                                  // Jeffrey070318增加：R1视觉模式，坐标模式/偏移模式二选一。
+#define VISION_R1_PID_X_KP 0.5f                                                                // Jeffrey070318增加：R1视觉偏移模式X轴PID比例系数。
+#define VISION_R1_PID_X_KI 0.01f                                                               // Jeffrey070318增加：R1视觉偏移模式X轴PID积分系数。
+#define VISION_R1_PID_X_KD 0.0f                                                                // Jeffrey070318增加：R1视觉偏移模式X轴PID微分系数。
+#define VISION_R1_PID_X_MAXOUT 10000.0f                                                        // Jeffrey070318增加：R1视觉偏移模式X轴速度输出限幅。
+#define VISION_R1_PID_Y_KP 0.5f                                                                // Jeffrey070318增加：R1视觉偏移模式Y轴PID比例系数。
+#define VISION_R1_PID_Y_KI 0.01f                                                               // Jeffrey070318增加：R1视觉偏移模式Y轴PID积分系数。
+#define VISION_R1_PID_Y_KD 0.0f                                                                // Jeffrey070318增加：R1视觉偏移模式Y轴PID微分系数。
+#define VISION_R1_PID_Y_MAXOUT 10000.0f                                                        // Jeffrey070318增加：R1视觉偏移模式Y轴速度输出限幅。
+#define VISION_R1_PID_DEADBAND 2.0f                                                            // Jeffrey070318增加：R1视觉偏移PID死区，过滤小像素误差。
+#define VISION_R1_PID_INTEGRAL_RATIO 0.3f                                                      // Jeffrey070318增加：R1视觉偏移PID积分限幅相对MaxOut的比例。
+#define OPTICAL_FLOW_R1_PROTOCOL OPTICAL_FLOW_UPIXELS_NO_TOF                                   // Jeffrey070318增加：R1光流协议，学长版使用无TOF帧。
+#define OPTICAL_FLOW_R1_SCALE_X OPTICAL_FLOW_DEFAULT_SCALE                                     // Jeffrey070318增加：R1光流传感器X轴角位移缩放。
+#define OPTICAL_FLOW_R1_SCALE_Y 20000.0f                                                       // Jeffrey070318增加：R1光流传感器Y轴角位移缩放。
+#define OPTICAL_FLOW_R1_SWAP_XY 1u                                                             // Jeffrey070318增加：R1光流安装方向是否交换X/Y。
+#define OPTICAL_FLOW_R1_X_DIRECTION 1                                                          // Jeffrey070318增加：R1光流X方向符号修正。
+#define OPTICAL_FLOW_R1_Y_DIRECTION -1                                                         // Jeffrey070318增加：R1光流Y方向符号修正。
+#define OPTICAL_FLOW_R1_ENABLE_GLOBAL_FRAME 1u                                                 // Jeffrey070318增加：R1光流是否启用yaw旋转到世界坐标。
 
 /* R1 arm */
 #define DELTA_R1_MOTOR_NUM 3u                             // R1击球机构电机数量
@@ -169,9 +171,9 @@
 #define MIT_DELTA_R1_HIT_KP 300.0f                        // R1击球动作delta电机MIT位置P
 #define MIT_DELTA_R1_HIT_KD 3.0f                          // R1击球动作delta电机MIT速度D
 #define MIT_DELTA_R1_HIT_TORQ 5.0f                        // R1击球动作delta电机MIT前馈力矩
-#define MIT_DELTA_R1_GET_KP 200.0f                        // R1接球动作delta电机MIT位置P
+#define MIT_DELTA_R1_GET_KP 500.0f                        // R1接球动作delta电机MIT位置P
 #define MIT_DELTA_R1_GET_KD 3.0f                          // R1接球动作delta电机MIT速度D
-#define MIT_DELTA_R1_GET_TORQ 3.0f                        // R1接球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R1_GET_TORQ 5.0f                        // R1接球动作delta电机MIT前馈力矩
 #define MIT_DELTA_R1_SLOW_KP 50.0f                        // R1慢速动作delta电机MIT位置P
 #define MIT_DELTA_R1_SLOW_KD 3.0f                         // R1慢速动作delta电机MIT速度D
 #define MIT_DELTA_R1_SLOW_TORQ 0.0f                       // R1慢速动作delta电机MIT前馈力矩
@@ -227,7 +229,7 @@
 #define CHASSIS_R2_CURRENT_PID_KD 0.0f                      // R2底盘电流环D
 #define CHASSIS_R2_CURRENT_PID_INTEGRAL_LIMIT 3000.0f       // R2底盘电流环积分限幅
 #define CHASSIS_R2_CURRENT_PID_MAX_OUT 15000.0f             // R2底盘电流环输出限幅
-#define CHASSIS_R2_SPEED_FEEDFORWARD_KV 0.07f               // R2底盘速度目标到电流前馈的比例，调响应慢时从0逐步加。
+#define CHASSIS_R2_SPEED_FEEDFORWARD_KV 0.065f              // R2底盘速度目标到电流前馈的比例，调响应慢时从0逐步加。
 #define CHASSIS_R2_HEADING_PID_KP 90.0f                     // R2车头保持角度环P
 #define CHASSIS_R2_HEADING_PID_KI 1.5f                      // R2车头保持角度环I
 #define CHASSIS_R2_HEADING_PID_KD 120.0f                    // R2车头保持角度环D
@@ -240,17 +242,17 @@
 #define CHASSIS_R2_VY_DIRECTION 1                           // R2底盘Y方向符号, 1=正向 -1=反向
 
 /* R2 navigation and cmd */
-#define NAV_R2_MAX_SPEED 16000.0f                // R2导航速度上限，按YYP视觉坐标导航参数对齐。
-#define NAV_R2_SPEED_GAIN 60000.0f               // R2导航距离到速度的比例，按YYP视觉坐标导航参数对齐。
-#define NAV_R2_ARRIVAL_DIST 0.10f                // R2导航到点判定距离，按YYP视觉坐标导航参数对齐。
-#define R2_RIGHT2_FIXED_MOVE_TEST_Y 0.50f        // R2右二临时测试：按下后用光流固定向Y方向移动的距离(m)。
-#define R2_RIGHT2_FIXED_MOVE_TEST_DEADBAND 0.02f // R2右二临时测试米制PID死区，避免复用视觉像素/误差死区。
-#define CMD_R2_REMOTE_MOVE_SCALE 30.0f           // R2遥控器平移摇杆比例
-#define CMD_R2_REMOTE_YAW_SCALE 4.0f             // R2遥控器旋转摇杆比例
-#define CMD_R2_REMOTE_YAW_MAX_WZ 1600.0f         // R2遥控器旋转二次曲线满杆输出上限，优先保证角度微调精度。
-#define CMD_R2_REMOTE_YAW_STICK_MAX 660.0f       // R2遥控器旋转摇杆满量程
-#define CMD_R2_REMOTE_DEADBAND 80                // R2遥控器摇杆死区
-#define CMD_R2_REMOTE_STOP_DIAL_THRESHOLD 300    // R2遥控器拨轮急停阈值
+#define NAV_R2_MAX_SPEED 16000.0f                                                              // R2导航速度上限，按YYP视觉坐标导航参数对齐。
+#define NAV_R2_SPEED_GAIN 60000.0f                                                             // R2导航距离到速度的比例，按YYP视觉坐标导航参数对齐。
+#define NAV_R2_ARRIVAL_DIST 0.10f                                                              // R2导航到点判定距离，按YYP视觉坐标导航参数对齐。
+#define CMD_R2_REMOTE_MOVE_SCALE 30.0f                                                         // R2遥控器平移摇杆旧线性比例，用于计算二次曲线满杆速度
+#define CMD_R2_REMOTE_MOVE_STICK_MAX 660.0f                                                    // R2遥控器平移摇杆满量程
+#define CMD_R2_REMOTE_MOVE_MAX_SPEED (CMD_R2_REMOTE_MOVE_SCALE * CMD_R2_REMOTE_MOVE_STICK_MAX) // R2遥控器平移二次曲线满杆输出
+#define CMD_R2_REMOTE_YAW_SCALE 4.0f                                                           // R2遥控器旋转摇杆比例
+#define CMD_R2_REMOTE_YAW_MAX_WZ 1600.0f                                                       // R2遥控器旋转二次曲线满杆输出上限，优先保证角度微调精度。
+#define CMD_R2_REMOTE_YAW_STICK_MAX 660.0f                                                     // R2遥控器旋转摇杆满量程
+#define CMD_R2_REMOTE_DEADBAND 80                                                              // R2遥控器摇杆死区
+#define CMD_R2_REMOTE_STOP_DIAL_THRESHOLD 300                                                  // R2遥控器拨轮急停阈值
 
 // 最终挑战
 #define VISION_R2_MODE VISION_MODE_COORDINATE // Jeffrey070318增加：R2视觉模式，坐标模式/偏移模式二选一。
@@ -266,16 +268,14 @@
 #define VISION_R2_PID_INTEGRAL_RATIO 0.3f     // Jeffrey070318增加：R2视觉偏移PID积分限幅相对MaxOut的比例。
 #define VISION_R2_SERVE_TRIGGER_DELAY_MS 0u   // R2视觉flag=1后延迟触发机械臂，便于调击球时机。
 #define VISION_R2_SERVE_HOLD_MS 300u          // R2视觉触发后强制保持抬升时间，避免flag过早归0导致未到最高点就回收。
-// IMPORTANT: 临时实测参数。cmd=1误差模式丢目标(target_x/y=0)后的速度衰减周期，过大会拖行，过小会急停抖动。
-#define VISION_R2_OFFSET_LOST_DECAY_TICKS 50u
-// 自动模式下看到球后，逐步降低遥控平移叠加量，避免人工输入把球带出视野。
-#define VISION_R2_REMOTE_BLEND_MIN_GAIN 0.30f
-#define VISION_R2_REMOTE_BLEND_DECAY_MS 500u
-#define VISION_R2_REMOTE_BLEND_RECOVER_MS 300u
+// 自动模式下看到球后, 遥控平移只保留微调量; X/Y按单轴视觉误差分别衰减。
+#define VISION_R2_REMOTE_BLEND_ZERO_ERROR 2.0f  // pixel, 单轴误差小于该值时对应方向遥控平移增益为0。
+#define VISION_R2_REMOTE_BLEND_FULL_ERROR 80.0f // pixel, 单轴误差大于该值时对应方向达到最大微调增益。
+#define VISION_R2_REMOTE_BLEND_MAX_GAIN 0.15f   // 看到球后遥控平移最大介入比例，防止人手重新主导追球。
 // IMPORTANT: 临时原地测试开关。置1时左一自动模式下底盘vx/vy/wz锁为0，只保留视觉flag控制机械臂。
 #define R2_AUTO_MODE_CHASSIS_LOCK_TEST 0u
 // IMPORTANT: 临时机械臂测试开关。置1时自动模式忽略视觉flag，机械臂保持READY；手动左二仍可单独测试机械臂。
-#define R2_AUTO_MODE_ARM_DISABLE_TEST 1u
+#define R2_AUTO_MODE_ARM_DISABLE_TEST 0u
 
 #define OPTICAL_FLOW_R2_PROTOCOL OPTICAL_FLOW_UPIXELS_NO_TOF // Jeffrey070318增加：R2光流协议，学长版使用无TOF帧。
 #define OPTICAL_FLOW_R2_SCALE_X OPTICAL_FLOW_DEFAULT_SCALE   // Jeffrey070318增加：R2光流传感器X轴角位移缩放。
@@ -295,7 +295,7 @@
 #define DELTA_R2_POSITION_THRESHOLD 0.15f                 // R2击球机构到位误差阈值
 #define MIT_DELTA_R2_HIT_KP 300.0f                        // R2击球动作delta电机MIT位置P
 #define MIT_DELTA_R2_HIT_KD 3.0f                          // R2击球动作delta电机MIT速度D
-#define MIT_DELTA_R2_HIT_TORQ 5.0f                        // R2击球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R2_HIT_TORQ 6.0f                        // R2击球动作delta电机MIT前馈力矩
 #define MIT_DELTA_R2_GET_KP 300.0f                        // R2接球动作delta电机MIT位置P
 #define MIT_DELTA_R2_GET_KD 3.0f                          // R2接球动作delta电机MIT速度D
 #define MIT_DELTA_R2_GET_TORQ 5.0f                        // R2接球动作delta电机MIT前馈力矩
@@ -312,7 +312,7 @@
 #define PITCH_R2_FRONT_LIMIT_POS 0.46f                    // Jeffrey070318增加：R2 pitch前向实测机械限位，调试目标不要直接取到这里。
 #define PITCH_R2_BACK_LIMIT_POS -0.74f                    // Jeffrey070318增加：R2 pitch背向实测机械限位，按零点反向取负并留余量调试。
 #define PITCH_R2_TEST_FRONT_POS 0.46f                     // Jeffrey070318修改：R2 pitch前向测试位置临时给到实测正向限位。
-#define PITCH_R2_TEST_BACK_POS -0.74f                     // Jeffrey070318修改：R2 pitch背向测试位置临时给到实测负向限位。
+#define PITCH_R2_TEST_BACK_POS -0.45f                     // Jeffrey070318修改：R2 pitch背向测试位置临时给到实测负向限位。
 #define PITCH_R2_TEST_SPEED 2.0f                          // Jeffrey070318增加：R2 pitch位置速度模式测试速度。
 #define PITCH_R2_REMOTE_ZERO_POS 0.0f                     // Jeffrey070318增加：R2遥控器控制pitch时的机械零点。
 #define PITCH_R2_REMOTE_FRONT_POS PITCH_R2_TEST_FRONT_POS // Jeffrey070318增加：R2左摇杆上推对应的pitch前向目标。
@@ -371,6 +371,8 @@
 #define NAV_SPEED_GAIN NAV_R1_SPEED_GAIN                                               // 业务代码使用的导航速度比例
 #define NAV_ARRIVAL_DIST NAV_R1_ARRIVAL_DIST                                           // 业务代码使用的导航到点距离
 #define CMD_REMOTE_MOVE_SCALE CMD_R1_REMOTE_MOVE_SCALE                                 // 业务代码使用的遥控平移比例
+#define CMD_REMOTE_MOVE_STICK_MAX CMD_R1_REMOTE_MOVE_STICK_MAX                         // 业务代码使用的遥控平移摇杆满量程
+#define CMD_REMOTE_MOVE_MAX_SPEED CMD_R1_REMOTE_MOVE_MAX_SPEED                         // 业务代码使用的遥控平移满杆输出
 #define CMD_REMOTE_YAW_SCALE CMD_R1_REMOTE_YAW_SCALE                                   // 业务代码使用的遥控旋转比例
 #define CMD_REMOTE_YAW_MAX_WZ CMD_R1_REMOTE_YAW_MAX_WZ                                 // 业务代码使用的遥控旋转满杆输出上限
 #define CMD_REMOTE_YAW_STICK_MAX CMD_R1_REMOTE_YAW_STICK_MAX                           // 业务代码使用的遥控旋转摇杆满量程
@@ -476,9 +478,9 @@
 #define NAV_MAX_SPEED NAV_R2_MAX_SPEED                                                 // 业务代码使用的导航速度上限
 #define NAV_SPEED_GAIN NAV_R2_SPEED_GAIN                                               // 业务代码使用的导航速度比例
 #define NAV_ARRIVAL_DIST NAV_R2_ARRIVAL_DIST                                           // 业务代码使用的导航到点距离
-#define RIGHT2_FIXED_MOVE_TEST_Y R2_RIGHT2_FIXED_MOVE_TEST_Y                           // 业务代码使用的右二固定距离测试Y位移
-#define RIGHT2_FIXED_MOVE_TEST_DEADBAND R2_RIGHT2_FIXED_MOVE_TEST_DEADBAND             // 业务代码使用的右二固定距离测试米制PID死区
 #define CMD_REMOTE_MOVE_SCALE CMD_R2_REMOTE_MOVE_SCALE                                 // 业务代码使用的遥控平移比例
+#define CMD_REMOTE_MOVE_STICK_MAX CMD_R2_REMOTE_MOVE_STICK_MAX                         // 业务代码使用的遥控平移摇杆满量程
+#define CMD_REMOTE_MOVE_MAX_SPEED CMD_R2_REMOTE_MOVE_MAX_SPEED                         // 业务代码使用的遥控平移满杆输出
 #define CMD_REMOTE_YAW_SCALE CMD_R2_REMOTE_YAW_SCALE                                   // 业务代码使用的遥控旋转比例
 #define CMD_REMOTE_YAW_MAX_WZ CMD_R2_REMOTE_YAW_MAX_WZ                                 // 业务代码使用的遥控旋转满杆输出上限
 #define CMD_REMOTE_YAW_STICK_MAX CMD_R2_REMOTE_YAW_STICK_MAX                           // 业务代码使用的遥控旋转摇杆满量程
@@ -497,10 +499,9 @@
 #define VISION_PID_INTEGRAL_RATIO VISION_R2_PID_INTEGRAL_RATIO                         // Jeffrey070318增加：业务代码使用的视觉PID积分限幅比例。
 #define VISION_SERVE_TRIGGER_DELAY_MS VISION_R2_SERVE_TRIGGER_DELAY_MS                 // Jeffrey070318增加：业务代码使用的视觉触发机械臂延迟。
 #define VISION_SERVE_HOLD_MS VISION_R2_SERVE_HOLD_MS                                   // 业务代码使用的视觉触发后机械臂强制抬升保持时间
-#define VISION_OFFSET_LOST_DECAY_TICKS VISION_R2_OFFSET_LOST_DECAY_TICKS               // Jeffrey070318增加：业务代码使用的误差模式丢目标衰减周期。
-#define VISION_REMOTE_BLEND_MIN_GAIN VISION_R2_REMOTE_BLEND_MIN_GAIN                   // 自动模式看到球后遥控平移叠加最小增益
-#define VISION_REMOTE_BLEND_DECAY_MS VISION_R2_REMOTE_BLEND_DECAY_MS                   // 自动模式看到球后遥控平移增益下降时间
-#define VISION_REMOTE_BLEND_RECOVER_MS VISION_R2_REMOTE_BLEND_RECOVER_MS               // 自动模式未看到球时遥控平移增益恢复时间
+#define VISION_REMOTE_BLEND_ZERO_ERROR VISION_R2_REMOTE_BLEND_ZERO_ERROR               // 自动模式视觉误差小于该值时遥控平移退出
+#define VISION_REMOTE_BLEND_FULL_ERROR VISION_R2_REMOTE_BLEND_FULL_ERROR               // 自动模式视觉误差大于该值时遥控平移达到最大微调
+#define VISION_REMOTE_BLEND_MAX_GAIN VISION_R2_REMOTE_BLEND_MAX_GAIN                   // 自动模式看到球后遥控平移最大微调比例
 #define AUTO_MODE_CHASSIS_LOCK_TEST R2_AUTO_MODE_CHASSIS_LOCK_TEST                     // 临时原地测试: 自动模式锁定底盘
 #define AUTO_MODE_ARM_DISABLE_TEST R2_AUTO_MODE_ARM_DISABLE_TEST                       // 临时测试: 自动模式禁用视觉触发机械臂
 #define OPTICAL_FLOW_PROTOCOL OPTICAL_FLOW_R2_PROTOCOL                                 // Jeffrey070318增加：业务代码使用的光流协议。
@@ -624,7 +625,6 @@ typedef struct
 typedef struct
 {
     uint8_t delta_feedback;
-    float pitch_angle; // Delta回传pitch实际角度，视觉发送帧最后一个float字段上报给上位机。
     uint8_t test_seq; // [测试] delta 自增计数器, 验证 delta->cmd 链路
 } Delta_Upload_Data_s;
 

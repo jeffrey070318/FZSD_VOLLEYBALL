@@ -84,7 +84,7 @@ void VisionSend(Vision_Send_s *send)
     send_buff[2] = (uint8_t)send->state;
     memcpy(&send_buff[3], &send->robot_x, 4);
     memcpy(&send_buff[7], &send->robot_y, 4);
-    memcpy(&send_buff[11], &send->pitch_angle, 4);
+    memcpy(&send_buff[11], &send->robot_yaw, 4);
 
     uint8_t xor_val = 0;
     for (uint8_t i = 1; i < VISION_SEND_SIZE - 2; ++i)
@@ -152,7 +152,7 @@ void VisionSend(Vision_Send_s *send)
     send_buff[2] = (uint8_t)send->state;
     memcpy(&send_buff[3], &send->robot_x, 4);
     memcpy(&send_buff[7], &send->robot_y, 4);
-    memcpy(&send_buff[11], &send->pitch_angle, 4);
+    memcpy(&send_buff[11], &send->robot_yaw, 4);
 
     uint8_t xor_val = 0;
     for (uint8_t i = 1; i < VISION_SEND_SIZE - 2; ++i)

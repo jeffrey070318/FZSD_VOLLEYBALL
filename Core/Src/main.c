@@ -211,11 +211,12 @@ int main(void)
 
     /* MCU Configuration--------------------------------------------------------*/
 
-    /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-    HAL_Init();
+    /* Reset of all peripherals, Initializes the Flash interface and the Systick. *
+
+
 
     /* USER CODE BEGIN Init */
-
+    HAL_Init();
     /* USER CODE END Init */
 
     /* Configure the system clock */

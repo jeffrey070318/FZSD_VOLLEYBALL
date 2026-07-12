@@ -41,7 +41,7 @@ typedef struct {
     Robot_State_e state;
     float robot_x;
     float robot_y;
-    float pitch_angle;
+    float robot_yaw;
 } Vision_Send_s;
 
 #pragma pack()

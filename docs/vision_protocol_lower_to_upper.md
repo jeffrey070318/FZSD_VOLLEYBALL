@@ -31,7 +31,7 @@
 | 2 | state | `uint8_t` | 机器人当前业务状态 |
 | 3-6 | robot_x | `float32` | 下位机上报的车体 X 位置 |
 | 7-10 | robot_y | `float32` | 下位机上报的车体 Y 位置 |
-| 11-14 | pitch_angle | `float32` | pitch 轴实际角度，来自 `Pitch_motor.para.pos` |
+| 11-14 | robot_yaw | `float32` | 下位机上报的车体/IMU yaw |
 | 15 | xor_val | `uint8_t` | 索引 `1..14` 逐字节异或 |
 | 16 | tail | `uint8_t` | 固定 `0x55` |
 
@@ -69,21 +69,19 @@ vision_send_data.robot_y = flow_data->position_y_global;
 
 如果光流计未接入或数据指针为空，则上报 `0.0f`。
 
-### pitch_angle
+### robot_yaw
 
-当前最后一个 `float32` 字段已经由原来的 `robot_yaw` 改为 `pitch_angle`。
+当前最后一个 `float32` 字段为 `robot_yaw`，与旧版上位机协议保持一致。
 
 数据来源链路：
 
 ```text
-Pitch_motor.para.pos
-    -> delta_feedback_data.pitch_angle
-    -> delta_fetch_data.pitch_angle
-    -> vision_send_data.pitch_angle
+DM_IMU_GetData()->yaw 或 ins_imu_data->Yaw
+    -> vision_send_data.robot_yaw
     -> send_buff[11..14]
 ```
 
-也就是说，上位机解析下位机回传帧时，索引 `11..14` 应按 `float32 pitch_angle` 解析，不再按 yaw 解析。
+也就是说，上位机解析下位机回传帧时，索引 `11..14` 应按 `float32 robot_yaw` 解析。
 
 ## 校验计算
 
@@ -116,14 +114,14 @@ def parse_lower_to_upper(frame: bytes):
     state = frame[2]
     robot_x = struct.unpack("<f", frame[3:7])[0]
     robot_y = struct.unpack("<f", frame[7:11])[0]
-    pitch_angle = struct.unpack("<f", frame[11:15])[0]
+    robot_yaw = struct.unpack("<f", frame[11:15])[0]
 
     return {
         "mode": mode,
         "state": state,
         "robot_x": robot_x,
         "robot_y": robot_y,
-        "pitch_angle": pitch_angle,
+        "robot_yaw": robot_yaw,
     }
 ```
 
@@ -131,6 +129,6 @@ def parse_lower_to_upper(frame: bytes):
 
 上位机下发帧是 19 字节，字段中有 `cmd / target_x / target_y / flag / target_time`。
 
-下位机上发帧是 17 字节，字段中有 `mode / state / robot_x / robot_y / pitch_angle`。
+下位机上发帧是 17 字节，字段中有 `mode / state / robot_x / robot_y / robot_yaw`。
 
-两者不要混用。尤其注意：上位机下发帧中的索引 `13..16` 是 `target_time`；下位机上发帧中的 pitch 角度在索引 `11..14`。
+两者不要混用。尤其注意：上位机下发帧中的索引 `13..16` 是 `target_time`；下位机上发帧中的 yaw 在索引 `11..14`。
