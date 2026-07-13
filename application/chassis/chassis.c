@@ -22,6 +22,7 @@
 #include "bsp_dwt.h"
 // #include "referee_UI.h"
 #include "controller.h"
+#include "user_lib.h"
 #include "arm_math.h"
 #if ROBOT_ENABLE_VOFA_CHASSIS_DEBUG
 #include "vofa.h"
@@ -420,7 +421,11 @@ void ChassisTask()
         {
             PIDInit(&heading_pid, &heading_pid_config); // 重新切入时复位积分和历史误差
         }
-        chassis_cmd_recv.wz = PIDCalculate(&heading_pid, 0.0f, chassis_cmd_recv.offset_angle);
+        float angle_wz = PIDCalculate(&heading_pid, 0.0f, chassis_cmd_recv.offset_angle);
+        float gyro_wz = -CHASSIS_HEADING_GYRO_DAMP * chassis_cmd_recv.yaw_rate;
+        chassis_cmd_recv.wz = float_constrain(angle_wz + gyro_wz,
+                                              -CHASSIS_HEADING_PID_MAX_OUT,
+                                              CHASSIS_HEADING_PID_MAX_OUT);
         break;
     }
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略

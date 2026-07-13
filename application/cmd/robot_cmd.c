@@ -255,13 +255,17 @@ static void CalcOffsetAngle()
     static chassis_mode_e last_mode = CHASSIS_ZERO_FORCE;
 
     float yaw;
+    float yaw_rate;
 #if CHASSIS_YAW_SOURCE == YAW_SOURCE_DM_IMU
     const DM_IMU_Data_s *imu = DM_IMU_GetData();
     yaw = imu->yaw;
+    yaw_rate = imu->gyro[2] * 57.295779513f;
 #elif CHASSIS_YAW_SOURCE == YAW_SOURCE_BMI088_INS
     yaw = ins_imu_data->Yaw;
+    yaw_rate = ins_imu_data->Gyro[Z] * 57.295779513f;
 #else
     yaw = 0;
+    yaw_rate = 0;
 #endif
 
     // 进入KEEP_FRONT模式时锁定当前yaw为目标角度
@@ -278,6 +282,7 @@ static void CalcOffsetAngle()
     if (offset < -180.0f)
         offset += 360.0f;
     chassis_cmd_send.offset_angle = offset;
+    chassis_cmd_send.yaw_rate = yaw_rate;
 }
 
 /**
@@ -575,8 +580,18 @@ static void RemoteControlSet()
     {
         if (keep_front_idle_ticks < 0xFFFFu)
             keep_front_idle_ticks++;
-        chassis_cmd_send.chassis_mode = CHASSIS_KEEP_FRONT;
-        chassis_cmd_send.wz = 0.0f;
+        if (keep_front_idle_ticks < CHASSIS_KEEP_FRONT_IDLE_RELEASE_TICKS)
+        {
+            chassis_cmd_send.chassis_mode = CHASSIS_KEEP_FRONT;
+            chassis_cmd_send.wz = 0.0f;
+        }
+        else
+        {
+            keep_front_lock_active = 0;
+            keep_front_idle_ticks = 0;
+            chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW;
+            chassis_cmd_send.wz = 0.0f;
+        }
     }
     else
     {
@@ -592,48 +607,24 @@ static void RemoteControlSet()
     dbg_cmd_keep_front_lock_active = keep_front_lock_active;
 }
 
-// Jeffrey070318增加：把左摇杆上下比例映射到pitch目标。
+// Jeffrey070318修改：pitch由左摇杆全行程二次曲线控制: 前推到-0.74, 后拉到0, 中位附近更细。
 static float RemotePitchTargetFromJoystick(int16_t rocker_l1)
 {
-    // Jeffrey070318增加：pitch摇杆方向修正，PITCH_STICK_DIRECTION=-1时上下颠倒
-    rocker_l1 = rocker_l1 * PITCH_STICK_DIRECTION;
-
-    float ratio = (float)rocker_l1 / PITCH_REMOTE_STICK_MAX;
+    float ratio = (float)(rocker_l1 * PITCH_STICK_DIRECTION) / PITCH_REMOTE_STICK_MAX;
     if (ratio > 1.0f)
         ratio = 1.0f;
     if (ratio < -1.0f)
         ratio = -1.0f;
 
-#if PITCH_REMOTE_MODE == 1
-    // Mode 1: 摇杆中心=后方起始位(BACK_POS), 下拉前移从BACK到ZERO
-    // ratio=0(中位)→BACK, ratio=+1(拉到底)→ZERO
-    (void)CMD_REMOTE_DEADBAND; // 本模式不使用死区，回中即停在后方起始位
-    if (ratio < 0.0f)
-    {
-        return PITCH_REMOTE_BACK_POS;
-    }
-    return PITCH_REMOTE_BACK_POS + ratio * (PITCH_REMOTE_ZERO_POS - PITCH_REMOTE_BACK_POS);
-#else
-    // Mode 0: 原有逻辑，摇杆中心=零点，上推前倾/下拉后仰
-    if (abs(rocker_l1) <= CMD_REMOTE_DEADBAND)
-    {
-        return PITCH_REMOTE_ZERO_POS;
-    }
-    if (ratio > 0.0f)
-    {
-        return PITCH_REMOTE_ZERO_POS + ratio * (PITCH_REMOTE_FRONT_POS - PITCH_REMOTE_ZERO_POS);
-    }
-    return PITCH_REMOTE_ZERO_POS + (-ratio) * (PITCH_REMOTE_BACK_POS - PITCH_REMOTE_ZERO_POS);
-#endif
+    float curved_ratio = (ratio >= 0.0f) ? (ratio * ratio) : -(ratio * ratio);
+    float t = (curved_ratio + 1.0f) * 0.5f;
+    return PITCH_REMOTE_BACK_POS + t * (PITCH_REMOTE_ZERO_POS - PITCH_REMOTE_BACK_POS);
 }
 
-// Jeffrey070318修改：手动模式左二控制机械臂；自动模式下机械臂只接受视觉flag，不再响应遥控左二。
+// Jeffrey070318修改：手动/自动模式pitch都使用左摇杆控制。
 static void RemoteControlSetArm(void)
 {
-    if (switch_is_down(rc_data[TEMP].rc.switch_left1))
-        cmd_pitch_target_pos = ROBOT_AUTO_PITCH_TARGET_POS;
-    else
-        cmd_pitch_target_pos = RemotePitchTargetFromJoystick(rc_data[TEMP].rc.rocker_l1);
+    cmd_pitch_target_pos = RemotePitchTargetFromJoystick(rc_data[TEMP].rc.rocker_l1);
     cmd_pitch_speed = PITCH_REMOTE_SPEED;
     // Jeffrey070318增加：缓存pitch目标，确认CMD下发位置是否符合当前调试策略。
     dbg_cmd_pitch_target_pos = cmd_pitch_target_pos;
@@ -907,7 +898,7 @@ void RobotCMDTask()
     dbg_cmd_delta_action = (uint8_t)delta_cmd_send.delta_action;
     dbg_cmd_robot_state = (uint8_t)robot_state;
 
-// 上报世界坐标系位置及偏航角到视觉上位机
+// 上报世界坐标系位置及自动模式pitch锁定角度到视觉上位机
 #if ROBOT_ENABLE_VISION
     if (!dbg_cmd_rc_online)
         vision_send_data.mode = MODE_IDLE;
@@ -916,11 +907,7 @@ void RobotCMDTask()
     else
         vision_send_data.mode = MODE_REMOTE;
 
-#if CHASSIS_YAW_SOURCE == YAW_SOURCE_DM_IMU
-    vision_send_data.robot_yaw = DM_IMU_GetData()->yaw;
-#elif CHASSIS_YAW_SOURCE == YAW_SOURCE_BMI088_INS
-    vision_send_data.robot_yaw = ins_imu_data->Yaw;
-#endif
+    vision_send_data.pitch_angle = fabsf(delta_fetch_data.pitch_angle);
     // Jeffrey070318修改：光流未连接时视觉上报坐标置0，避免访问空指针。
     vision_send_data.robot_x = (flow_data != NULL) ? flow_data->position_x_global : 0.0f;
     vision_send_data.robot_y = (flow_data != NULL) ? flow_data->position_y_global : 0.0f;

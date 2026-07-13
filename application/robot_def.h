@@ -47,7 +47,7 @@
 #define R2_DEBUG_ENABLE_CMD_APP 1
 
 // Jeffrey070318修改：pitch轴按模式控制。自动模式锁定到单独角度，手动模式由左拨杆下拉控制。
-#define ROBOT_AUTO_LOCK_PITCH_TARGET_POS -0.74
+#define ROBOT_AUTO_LOCK_PITCH_TARGET_POS -0.45f
 
 // Jeffrey070318修改：进入遥控器整车测试阶段，CMD接管底盘和机械臂，单模块直测默认关闭。
 #define R2_DEBUG_ENABLE_INS_TASK 1    // 1: 创建INS任务
@@ -122,6 +122,8 @@
 #define CHASSIS_R1_HEADING_PID_MAX_OUT 2500.0f              // R1车头保持角度环输出限幅
 #define CHASSIS_R1_HEADING_PID_DEADBAND 0.3f                // R1车头保持角度死区
 #define CHASSIS_R1_HEADING_PID_INTEGRAL_LIMIT 400.0f        // R1车头保持角度环积分限幅
+#define CHASSIS_R1_HEADING_GYRO_DAMP 0.0f                   // R1车头角速度阻尼, 默认关闭。
+#define CHASSIS_R1_KEEP_FRONT_IDLE_RELEASE_TICKS 50u        // R1停止平移后保持车头的释放周期
 #define CHASSIS_R1_KEEP_FRONT_STATIC_WZ_DEADBAND 120.0f     // R1静止车头保持时小于该wz认为不足以驱动有效纠偏，直接置零防抖
 #define CHASSIS_R1_ROTATE_WZ 2000.0f                        // R1小陀螺旋转角速度
 #define CHASSIS_R1_VX_DIRECTION -1                          // R1底盘X方向符号, 1=正向 -1=反向
@@ -208,7 +210,7 @@
 #define CHASSIS_R2_TRACK_WIDTH 400.0f                       // R2左右轮中心距
 #define CHASSIS_R2_CENTER_OFFSET_X 0.0f                     // R2云台中心相对底盘中心X偏移
 #define CHASSIS_R2_CENTER_OFFSET_Y 0.0f                     // R2云台中心相对底盘中心Y偏移
-#define CHASSIS_R2_RADIUS_WHEEL 60.0f                       // R2轮子半径
+#define CHASSIS_R2_RADIUS_WHEEL 75.0f                       // R2轮子半径, 实测轮直径15cm。
 #define CHASSIS_R2_REDUCTION_RATIO_WHEEL 19.0f              // R2轮组电机减速比
 #define CHASSIS_R2_MOTOR_LF_ID 1u                           // R2左前轮电机CAN ID
 #define CHASSIS_R2_MOTOR_RF_ID 2u                           // R2右前轮电机CAN ID
@@ -229,13 +231,15 @@
 #define CHASSIS_R2_CURRENT_PID_KD 0.0f                      // R2底盘电流环D
 #define CHASSIS_R2_CURRENT_PID_INTEGRAL_LIMIT 3000.0f       // R2底盘电流环积分限幅
 #define CHASSIS_R2_CURRENT_PID_MAX_OUT 15000.0f             // R2底盘电流环输出限幅
-#define CHASSIS_R2_SPEED_FEEDFORWARD_KV 0.065f              // R2底盘速度目标到电流前馈的比例，调响应慢时从0逐步加。
+#define CHASSIS_R2_SPEED_FEEDFORWARD_KV 0.600f              // R2底盘速度目标到电流前馈的比例，调响应慢时从0逐步加。
 #define CHASSIS_R2_HEADING_PID_KP 90.0f                     // R2车头保持角度环P
-#define CHASSIS_R2_HEADING_PID_KI 1.5f                      // R2车头保持角度环I
+#define CHASSIS_R2_HEADING_PID_KI 0.0f                      // R2车头保持角度环I，短距离移动先关闭积分避免饱和翻转。
 #define CHASSIS_R2_HEADING_PID_KD 120.0f                    // R2车头保持角度环D
-#define CHASSIS_R2_HEADING_PID_MAX_OUT 3000.0f              // R2车头保持角度环输出限幅
+#define CHASSIS_R2_HEADING_PID_MAX_OUT 1600.0f              // R2车头保持角度环输出限幅，避免锁向纠偏打满导致左右甩。
 #define CHASSIS_R2_HEADING_PID_DEADBAND 0.3f                // R2车头保持角度死区
 #define CHASSIS_R2_HEADING_PID_INTEGRAL_LIMIT 400.0f        // R2车头保持角度环积分限幅
+#define CHASSIS_R2_HEADING_GYRO_DAMP 0.0f                   // R2车头角速度阻尼，当前BMI088 yaw跳变场景先关闭。
+#define CHASSIS_R2_KEEP_FRONT_IDLE_RELEASE_TICKS 50u        // R2停止平移后保持车头的释放周期, 2ms任务下约100ms。
 #define CHASSIS_R2_KEEP_FRONT_STATIC_WZ_DEADBAND 120.0f     // R2静止车头保持时小于该wz认为不足以驱动有效纠偏，直接置零防抖
 #define CHASSIS_R2_ROTATE_WZ 2000.0f                        // R2小陀螺旋转角速度
 #define CHASSIS_R2_VX_DIRECTION 1                           // R2底盘X方向符号, 1=正向 -1=反向
@@ -267,7 +271,7 @@
 #define VISION_R2_PID_DEADBAND 2.0f           // Jeffrey070318增加：R2视觉偏移PID死区，过滤小像素误差。
 #define VISION_R2_PID_INTEGRAL_RATIO 0.3f     // Jeffrey070318增加：R2视觉偏移PID积分限幅相对MaxOut的比例。
 #define VISION_R2_SERVE_TRIGGER_DELAY_MS 0u   // R2视觉flag=1后延迟触发机械臂，便于调击球时机。
-#define VISION_R2_SERVE_HOLD_MS 300u          // R2视觉触发后强制保持抬升时间，避免flag过早归0导致未到最高点就回收。
+#define VISION_R2_SERVE_HOLD_MS 500u          // R2视觉触发后强制保持抬升时间，避免flag过早归0导致未到最高点就回收。
 // 自动模式下看到球后, 遥控平移只保留微调量; X/Y按单轴视觉误差分别衰减。
 #define VISION_R2_REMOTE_BLEND_ZERO_ERROR 2.0f  // pixel, 单轴误差小于该值时对应方向遥控平移增益为0。
 #define VISION_R2_REMOTE_BLEND_FULL_ERROR 80.0f // pixel, 单轴误差大于该值时对应方向达到最大微调增益。
@@ -293,9 +297,9 @@
 #define PITCH_R2_MOTOR_ID 4u                              // R2机械臂pitch电机CAN ID
 #define DELTA_R2_SPEED 16.0f                              // R2击球机构目标运动速度
 #define DELTA_R2_POSITION_THRESHOLD 0.15f                 // R2击球机构到位误差阈值
-#define MIT_DELTA_R2_HIT_KP 300.0f                        // R2击球动作delta电机MIT位置P
+#define MIT_DELTA_R2_HIT_KP 500.0f                        // R2击球动作delta电机MIT位置P
 #define MIT_DELTA_R2_HIT_KD 3.0f                          // R2击球动作delta电机MIT速度D
-#define MIT_DELTA_R2_HIT_TORQ 6.0f                        // R2击球动作delta电机MIT前馈力矩
+#define MIT_DELTA_R2_HIT_TORQ 20.0f                       // R2击球动作delta电机MIT前馈力矩
 #define MIT_DELTA_R2_GET_KP 300.0f                        // R2接球动作delta电机MIT位置P
 #define MIT_DELTA_R2_GET_KD 3.0f                          // R2接球动作delta电机MIT速度D
 #define MIT_DELTA_R2_GET_TORQ 5.0f                        // R2接球动作delta电机MIT前馈力矩
@@ -313,16 +317,16 @@
 #define PITCH_R2_BACK_LIMIT_POS -0.74f                    // Jeffrey070318增加：R2 pitch背向实测机械限位，按零点反向取负并留余量调试。
 #define PITCH_R2_TEST_FRONT_POS 0.46f                     // Jeffrey070318修改：R2 pitch前向测试位置临时给到实测正向限位。
 #define PITCH_R2_TEST_BACK_POS -0.45f                     // Jeffrey070318修改：R2 pitch背向测试位置临时给到实测负向限位。
-#define PITCH_R2_TEST_SPEED 2.0f                          // Jeffrey070318增加：R2 pitch位置速度模式测试速度。
-#define PITCH_R2_REMOTE_ZERO_POS 0.0f                     // Jeffrey070318增加：R2遥控器控制pitch时的机械零点。
+#define PITCH_R2_TEST_SPEED 4.0f                          // Jeffrey070318增加：R2 pitch位置速度模式测试速度。
+#define PITCH_R2_REMOTE_ZERO_POS -0.30f                   // R2遥控器控制pitch时左摇杆最后端目标。
 #define PITCH_R2_REMOTE_FRONT_POS PITCH_R2_TEST_FRONT_POS // Jeffrey070318增加：R2左摇杆上推对应的pitch前向目标。
-#define PITCH_R2_REMOTE_BACK_POS PITCH_R2_TEST_BACK_POS   // Jeffrey070318增加：R2左摇杆下拉对应的pitch背向目标。
+#define PITCH_R2_REMOTE_BACK_POS PITCH_R2_BACK_LIMIT_POS  // R2左摇杆前推最前对应的pitch目标。
 #define PITCH_R2_REMOTE_SPEED PITCH_R2_TEST_SPEED         // Jeffrey070318增加：R2遥控器控制pitch的位置速度模式速度。
 #define PITCH_R2_REMOTE_STICK_MAX 660.0f                  // Jeffrey070318增加：R2遥控器pitch摇杆满量程，用于比例映射。
 #define PITCH_R2_STICK_DIRECTION -1                       // R2 pitch摇杆方向, 配合Mode1使下拉从BACK(-0.74)走到ZERO(0.0)。
 #define PITCH_R2_REMOTE_MODE 1                            // R2 pitch摇杆映射模式, 1=中心BACK, 下拉到ZERO, 上推无功能。
 #define DELTA_R2_ORIGINAL_POS 0.0f                        // R2击球机构初始目标位置
-#define DELTA_R2_HIT_1_POS 0.70f                          // Jeffrey070318修改：R2右开关机械臂发出目标改为实测最高点位置。
+#define DELTA_R2_HIT_1_POS 0.65f                          // Jeffrey070318修改：R2右开关机械臂发出目标改为实测最高点位置。
 #define DELTA_R2_BACK_POS 0.0f                            // R2击球机构回收目标位置
 #define DELTA_R2_TEST_DOWN_POS 0.9f                       // Jeffrey070318修改：R2直测目标改为最高点位置，按实测从零点伸张约0.9rad。
 #define DELTA_R2_TEST_BACK_POS 0.0f                       // Jeffrey070318修改：R2直测回收位置保持零点，便于从零点到最高点观察动作。
@@ -363,6 +367,8 @@
 #define CHASSIS_HEADING_PID_MAX_OUT CHASSIS_R1_HEADING_PID_MAX_OUT                     // 业务代码使用的车头角度环输出限幅
 #define CHASSIS_HEADING_PID_DEADBAND CHASSIS_R1_HEADING_PID_DEADBAND                   // 业务代码使用的车头角度死区
 #define CHASSIS_HEADING_PID_INTEGRAL_LIMIT CHASSIS_R1_HEADING_PID_INTEGRAL_LIMIT       // 业务代码使用的车头角度环积分限幅
+#define CHASSIS_HEADING_GYRO_DAMP CHASSIS_R1_HEADING_GYRO_DAMP                         // 业务代码使用的车头角速度阻尼
+#define CHASSIS_KEEP_FRONT_IDLE_RELEASE_TICKS CHASSIS_R1_KEEP_FRONT_IDLE_RELEASE_TICKS // 业务代码使用的停止平移后锁向释放周期
 #define CHASSIS_KEEP_FRONT_STATIC_WZ_DEADBAND CHASSIS_R1_KEEP_FRONT_STATIC_WZ_DEADBAND // 业务代码使用的静止保持wz防抖阈值
 #define CHASSIS_ROTATE_WZ CHASSIS_R1_ROTATE_WZ                                         // 业务代码使用的小陀螺角速度
 #define CHASSIS_VX_DIRECTION CHASSIS_R1_VX_DIRECTION                                   // 业务代码使用的底盘X方向符号
@@ -471,6 +477,8 @@
 #define CHASSIS_HEADING_PID_MAX_OUT CHASSIS_R2_HEADING_PID_MAX_OUT                     // 业务代码使用的车头角度环输出限幅
 #define CHASSIS_HEADING_PID_DEADBAND CHASSIS_R2_HEADING_PID_DEADBAND                   // 业务代码使用的车头角度死区
 #define CHASSIS_HEADING_PID_INTEGRAL_LIMIT CHASSIS_R2_HEADING_PID_INTEGRAL_LIMIT       // 业务代码使用的车头角度环积分限幅
+#define CHASSIS_HEADING_GYRO_DAMP CHASSIS_R2_HEADING_GYRO_DAMP                         // 业务代码使用的车头角速度阻尼
+#define CHASSIS_KEEP_FRONT_IDLE_RELEASE_TICKS CHASSIS_R2_KEEP_FRONT_IDLE_RELEASE_TICKS // 业务代码使用的停止平移后锁向释放周期
 #define CHASSIS_KEEP_FRONT_STATIC_WZ_DEADBAND CHASSIS_R2_KEEP_FRONT_STATIC_WZ_DEADBAND // 业务代码使用的静止保持wz防抖阈值
 #define CHASSIS_ROTATE_WZ CHASSIS_R2_ROTATE_WZ                                         // 业务代码使用的小陀螺角速度
 #define CHASSIS_VX_DIRECTION CHASSIS_R2_VX_DIRECTION                                   // 业务代码使用的底盘X方向符号
@@ -625,7 +633,8 @@ typedef struct
 typedef struct
 {
     uint8_t delta_feedback;
-    uint8_t test_seq; // [测试] delta 自增计数器, 验证 delta->cmd 链路
+    float pitch_angle; // Delta回传pitch电机实际当前位置，供视觉上位机读取。
+    uint8_t test_seq;  // [测试] delta 自增计数器, 验证 delta->cmd 链路
 } Delta_Upload_Data_s;
 
 typedef enum
@@ -731,6 +740,7 @@ typedef struct
     float vy;           // 横移方向速度
     float wz;           // 旋转速度
     float offset_angle; // 底盘和归中位置的夹角
+    float yaw_rate;     // 当前yaw角速度, deg/s, 用于车头锁定提前阻尼
     chassis_mode_e chassis_mode;
     int chassis_speed_buff;
     // UI部分
